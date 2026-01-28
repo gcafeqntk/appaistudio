@@ -43,40 +43,7 @@ const IconLoader2 = ({ className = "w-6 h-6", size = 24 }: { className?: string,
     <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
 );
 
-// --- COMPONENT: ErrorBoundary ---
-class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
-    state = { hasError: false, error: null };
-
-    constructor(props: { children: React.ReactNode }) {
-        super(props);
-    }
-
-    static getDerivedStateFromError(error: Error) {
-        return { hasError: true, error };
-    }
-
-    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error("ErrorBoundary caught error:", error, errorInfo);
-    }
-
-    render() {
-        if (this.state.hasError) {
-            return (
-                <div className="p-8 m-8 bg-red-50 border border-red-200 rounded-xl space-y-4 text-center">
-                    <h2 className="text-xl font-bold text-red-700">Đã xảy ra lỗi hiển thị</h2>
-                    <p className="text-red-600">{this.state.error?.message}</p>
-                    <button
-                        onClick={() => this.setState({ hasError: false })}
-                        className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-                    >
-                        Thử lại
-                    </button>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 interface TranslationAppProps {
     userId: string;
@@ -157,7 +124,7 @@ const TranslationApp: React.FC<TranslationAppProps> = ({ userId }) => {
             error: undefined
         });
 
-        const service = new TranslationService(apiKey);
+        const service = new TranslationService([apiKey]);
         let allTranslatedItems: SubtitleItem[] = [];
 
         try {

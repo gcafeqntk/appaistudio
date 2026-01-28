@@ -2,39 +2,51 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Idea, CharacterProfile, ActionDetail } from "../types";
 import { handleGeminiError } from "../utils/geminiErrorUtils";
 
-// --- HELPERS ---
+// --- GLOBAL CONFIG ---
 
-const resolveKeys = (input?: string): string[] => {
-  let keys: string[] = [];
-  if (input) {
-    keys = input.split('\n').map(k => k.trim()).filter(k => k);
-  }
-  // Fallback to env
-  if (keys.length === 0) {
-    const envKey = process.env.API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
-    if (envKey) keys.push(envKey);
-  }
-  return keys;
-};
-
-// Also support legacy global setter for backward compatibility if needed, 
-// though we prefer passing apiKey in args.
-let globalApiKeys: string[] = [];
-export const setGeminiKeys = (keys: string[]) => {
-  globalApiKeys = keys.filter(k => k.trim() !== '');
-};
-
-// Priority: Lite -> Standard -> Experimental -> Pro -> Legacy
+// Priority: Flash Latest -> Flash -> Lite -> Pro
 // We can use a different list for text-heavy tasks vs lightweight.
-// For now, use a general robust list.
 const MODEL_FALLBACKS = [
+  'gemini-flash-latest',
+  'gemini-1.5-flash',
   'gemini-2.0-flash-lite-preview-02-05',
   'gemini-2.5-flash',
   'gemini-2.0-flash-lite-001',
   'gemini-2.0-flash',
   'gemini-2.5-pro',
-  'gemini-flash-latest'
 ];
+
+// Support legacy global setter
+let globalApiKeys: string[] = [];
+export const setGeminiKeys = (keys: string[]) => {
+  globalApiKeys = keys.filter(k => k.trim() !== '');
+};
+
+// --- HELPERS ---
+
+const resolveKeys = (input?: string): string[] => {
+  let keys: string[] = [];
+
+  // 1. User Input Keys (Split by newline or comma)
+  if (input) {
+    keys = input.split(/[\n,]+/).map(k => k.trim()).filter(k => k);
+  }
+
+  // 2. Environment Keys (Split by comma)
+  const envKeyStr = process.env.API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  if (envKeyStr) {
+    const envKeys = envKeyStr.split(',').map((k: string) => k.trim()).filter((k: string) => k);
+    keys = [...keys, ...envKeys];
+  }
+
+  // 3. Global Runtime Keys (Legacy)
+  if (globalApiKeys.length > 0) {
+    keys = [...keys, ...globalApiKeys];
+  }
+
+  // Deduplicate
+  return [...new Set(keys)];
+};
 
 /**
  * Executes a Generative AI operation with robust fallback:
@@ -45,31 +57,40 @@ const generateWithFallback = async <T>(
   apiKeyInput: string | undefined,
   operation: (model: any) => Promise<T>
 ): Promise<T> => {
-  // Combine input keys with global keys if input is empty
-  let keys = resolveKeys(apiKeyInput);
-  if (keys.length === 0 && globalApiKeys.length > 0) {
-    keys = globalApiKeys;
-  }
+  // Resolve ALL available keys
+  const keys = resolveKeys(apiKeyInput);
 
-  if (keys.length === 0) throw new Error("No API Keys provided.");
+  if (keys.length === 0) throw new Error("No API Keys provided. Please configure VITE_GEMINI_API_KEY or enter a key.");
 
   let lastError: any;
 
+  // KEY ROTATION LOOP
   for (const key of keys) {
     const genAI = new GoogleGenerativeAI(key);
+
+    // MODEL ROTATION LOOP
     for (const modelName of MODEL_FALLBACKS) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
+        // Attempt operation
         return await operation(model);
       } catch (err: any) {
+        // Log warning but continue
         console.warn(`Failed: Key(...${key.slice(-4)}) Model(${modelName}) error: ${err.message}`);
         lastError = err;
-        // Continue to next model/key
+
+        // If we want to strictly stop on non-quota errors, we could check here.
+        // But for "Quota Exceeded" (429) or "Model Not Found" (404), we MUST continue.
+        // We generally continue on all errors to be safe.
       }
     }
   }
+
+  // If we reach here, ALL keys and models failed.
   throw lastError || new Error("All keys and models failed to generate content.");
 };
+
+// --- EXPORTED FUNCTIONS ---
 
 export const analyzeOpponentScript = async (script: string, apiKey?: string) => {
   return generateWithFallback(apiKey, async (model) => {
@@ -227,48 +248,42 @@ export const analyzeActionsForTag = async (tagContent: string, style: string, ch
 
         QUY TẮC TẠO PROMPT (Strict Compliance - Rules Override All):
 
-        0. [TUÂN THỦ TUYỆT ĐỐI - KHÔNG ĐƯỢC BỎ TRỐNG]:
-           - Trường 'imagePrompt' (Stable Image AI Prompt) là BẮT BUỘC CHO MỌI ACTION.
-           - Tuyệt đối KHÔNG trả về chuỗi rỗng "" cho imagePrompt.
-           - Nếu không nghĩ ra prompt mới, hãy copy nội dung từ motionPrompt sang và lược bỏ các yếu tố chuyển động camera.
-        
         1. [VISUAL STYLE]: Luôn bắt đầu bằng phong cách: [${style}].
 
         2. [Bối cảnh] (Context Memory):
-           - Nếu kịch bản không nêu rõ, hãy TỰ THÊM chi tiết (bàn ghế, đồ vật, bố cục...).
-           - Cơ chế GHI NHỚ: Nếu bối cảnh chưa đổi so với shot trước, hãy DÙNG LẠI bối cảnh cũ. Nếu đổi, hãy thiết lập bối cảnh mới chi tiết và ghi nhớ cho các shot sau.
+           - Nếu kịch bản không nêu rõ, hãy thêm chi tiết (bàn ghế, đồ vật, bố cục...).
+           - QUAN TRỌNG: Ghi nhớ bối cảnh. Nếu chưa đổi cảnh, DÙNG LẠI mô tả bối cảnh cũ. Nếu đổi cảnh, thiết lập bối cảnh mới chi tiết và ghi nhớ cho các shot sau.
 
-        3. [CAMERA]: Góc máy, chuyển động máy (Cinematic wording).
+        3. [QUY TẮC] (Safety & Quality):
+           - Luôn thêm vào prompt: [NO duplication, NO mutation, NO anatomical distortion, Any violation of anatomy rules is forbidden]
 
-        4. [ACTION] (Character Consistency):
-           - Khi nhắc đến nhân vật nào, BẮT BUỘC COPY NGUYÊN VĂN "Đặc điểm nhân vật" (Giới tính, Tuổi, Dáng, Khuôn mặt) vào prompt. KHÔNG TÓM TẮT.
-           - AI tự đọc kịch bản để bố trí vị trí nhân vật logic.
-           - QUAN TRỌNG: Nếu shot chỉ có ĐÚNG 1 nhân vật, bắt buộc thêm dòng: "The scene contains EXACTLY ONE character" vào cuối phần Action.
+        4. [CAMERA]: Góc máy, chuyển động máy (Cinematic wording).
 
-        5. [Trang Phục] (Costume Memory):
-           - Nếu kịch bản không nêu, hãy tự thêm và ghi màu sắc cụ thể.
-           - Cơ chế GHI NHỚ: Tương tự bối cảnh, lặp lại trang phục nếu chưa đổi cảnh/thời gian.
+        5. [ACTION] (Character Consistency):
+           - Khi nhắc đến nhân vật nào, BẮT BUỘC COPY NGUYÊN VĂN "Đặc điểm nhân vật" (Giới tính, Tuổi, Dáng, Khuôn mặt) từ thông tin gốc vào prompt.
+           - TUYỆT ĐỐI KHÔNG ghi tắt, KHÔNG tóm tắt, KHÔNG dùng "như trên". Phải copy full.
+           - Nếu shot có nhân vật khác, cũng copy full đặc điểm của họ vào.
 
-        6. [AUDIO/VOICE – LIP SYNC] (Video Only):
-           - Cấu trúc: [Tên nhân vật nói: "Lời thoại trong Master Transcript"]
-           - Nếu không có thoại, bỏ qua hoặc ghi nhạc nền.
+        6. [Trang Phục] (Costume Memory):
+           - Nếu kịch bản không nêu, tự thêm và ghi rõ màu sắc.
+           - QUAN TRỌNG: Giữ nguyên trang phục xuyên suốt các shot nếu chưa đổi thời gian/cảnh.
 
-        7. [SPEECH SYNC] (Video Only):
-           - Nếu có lời thoại, BẮT BUỘC ghi: "Chuyển động miệng nhân vật đồng bộ với lời thoại".
+        7. [AUDIO/VOICE – LIP SYNC]:
+           - Cấu trúc: [Tên nhân vật nói: "Lời thoại trong Master Transcript"] (nếu có thoại).
+           - Nếu không thoại: bỏ qua.
 
-        8. [TECHNICAL]: Ánh sáng, màu sắc (Lighting, Color).
+        8. [SPEECH SYNC]:
+           - Nếu có lời thoại ở mục trên, BẮT BUỘC ghi tag: [Chuyển động miệng nhân vật đồng bộ với lời thoại].
+
+        9. [TECHNICAL]: Ánh sáng, màu sắc (Lighting, Color).
 
         CẤU TRÚC PROMPT VIDEO (Video Motion Ai Prompt - Output String):
-        [${style}], [Bối cảnh chi tiết], [CAMERA], [ACTION: Tên NV + Đặc điểm gốc + Hành động chi tiết. ${characters.length === 1 ? 'The scene contains EXACTLY ONE character' : 'Check logic'}], [Trang phục], [AUDIO/VOICE – LIP SYNC], [SPEECH SYNC], [TECHNICAL]
-
-        CẤU TRÚC PROMPT ẢNH (Stable Image AI Prompt - Output String) - BẮT BUỘC CÓ:
-        [${style}], [Bối cảnh chi tiết], [CAMERA], [ACTION: Tên NV + Đặc điểm gốc + Hành động chi tiết. ${characters.length === 1 ? 'The scene contains EXACTLY ONE character' : 'Check logic'}], [Trang phục], [TECHNICAL]
+        [${style}], [Bối cảnh chi tiết], [NO duplication, NO mutation, NO anatomical distortion, Any violation of anatomy rules is forbidden], [CAMERA], [ACTION: Tên NV + (Đặc điểm Full Copy) + Hành động. ${characters.length === 1 ? 'The scene contains EXACTLY ONE character' : 'Check logic'}], [Trang phục], [AUDIO/VOICE – LIP SYNC], [SPEECH SYNC], [TECHNICAL]
 
         TRẢ VỀ JSON Array các object:
         - action: [Tên các NV có mặt]: [Mô tả hành động]
         - voiceText: Lời thoại (nếu có)
         - motionPrompt: Prompt video (Tuân thủ cấu trúc trên)
-        - imagePrompt: Prompt ảnh (Tuân thủ cấu trúc trên - KHÔNG ĐƯỢC RỖNG)
       `;
 
     const result = await model.generateContent({
@@ -279,5 +294,123 @@ export const analyzeActionsForTag = async (tagContent: string, style: string, ch
     });
 
     return JSON.parse(result.response.text()) as ActionDetail[];
+  });
+};
+
+export const analyzeImageStyle = async (imageBase64: string, apiKey?: string) => {
+  return generateWithFallback(apiKey, async (model) => {
+    const prompt = `
+      Hãy phân tích phong cách nghệ thuật (Art Style) của bức ảnh này để tôi có thể DỰNG LẠI (Recreate) một bức ảnh khác có cùng không khí.
+      
+      Tập trung sâu vào 4 yếu tố sau (Bỏ qua text, logo, chi tiết không liên quan):
+      1. **Bối cảnh/Dựng cảnh (Scene Composition)**: Bố cục, hậu cảnh, góc máy đặc trưng.
+      2. **Nhân vật (Character Design)**: Phong cách vẽ/chụp nhân vật (thực tế, anime, 3D, sơn dầu...), tỉ lệ cơ thể, biểu cảm đặc trưng.
+      3. **Ánh sáng (Lighting)**: Nguồn sáng, độ tương phản (contrast), shadow.
+      4. **Màu sắc (Color Palette)**: Tone màu chủ đạo, các màu điểm nhấn, bộ lọc màu (filter).
+      
+      Kết quả trả về một đoạn văn mô tả chi tiết nhưng súc tích (tiếng Việt), giúp họa sĩ hoặc AI khác có thể hình dung và vẽ lại được style này.
+    `;
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: imageBase64,
+          mimeType: "image/jpeg",
+        },
+      },
+    ]);
+    return result.response.text();
+  });
+};
+
+export const generateViralTitle = async (script: string, apiKey?: string) => {
+  return generateWithFallback(apiKey, async (model) => {
+    const prompt = `
+      CONTEXT: You are a World-Class YouTube Strategist. You know exactly what makes people click.
+      INPUT SCRIPT: """${script.substring(0, 5000)}"""
+      
+      TASK: Generate THE SINGLE BEST viral title for this video.
+      
+      RULES:
+      1. **DETECT LANGUAGE**: Output the title in the SAME LANGUAGE as the input script. 
+      2. **STYLE**: Click-worthy, high curiosity, emotional hook, or "Blue Ocean" style.
+      3. **FORMAT**: Return ONLY the raw title text. No quotes, no "Here is the title:", no breakdown.
+      4. **LENGTH**: Short, punchy (under 60 characters preferred).
+    `;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  });
+};
+
+export const generateDescriptionAndHashtags = async (script: string, title: string, apiKey?: string) => {
+  return generateWithFallback(apiKey, async (model) => {
+    const prompt = `
+      CONTEXT: You are an SEO Expert for Video Content.
+      INPUT SCRIPT: """${script.substring(0, 5000)}"""
+      INPUT TITLE: "${title}"
+      
+      TASK: Create a concise description and hashtags.
+      
+      RULES:
+      1. **LANGUAGE**: Same as the script.
+      2. **DESCRIPTION**: 2-3 sentences. Concise, summarized, teasing the content without giving everything away. Include SEO keywords naturally.
+      3. **HASHTAGS**: Exactly 4 relevant, high-traffic hashtags.
+      
+      OUTPUT FORMAT (JSON):
+      {
+        "text": "The concise description text...",
+        "hashtags": ["tag1", "tag2", "tag3", "tag4"]
+      }
+    `;
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    return JSON.parse(result.response.text());
+  });
+};
+
+export const generateThumbnailLayout = async (script: string, title: string, styleAnalysis: string, apiKey?: string) => {
+  return generateWithFallback(apiKey, async (model) => {
+    const prompt = `
+      CONTEXT: You are a Professional Thumbnail Designer.
+      INPUT SCRIPT: """${script.substring(0, 3000)}"""
+      INPUT TITLE: "${title}"
+      STYLE GUIDE: """${styleAnalysis}"""
+      
+      TASK: 
+      1. Split the TITLE into exactly 4 meaningful lines (semantic split).
+         - If title is short, spread it out or repeat key keywords for impact.
+         - Ensure lines are roughly balanced to fill the left side of the screen.
+      
+      2. Write a highly detailed Visual Prompt (STRICTLY IN ENGLISH) for an AI Image Generator to create the BACKGROUND.
+         - **CRITICAL**: The prompt MUST be in English, even if the Input Script is in Japanese/Vietnamese.
+         - **CONTENT**: Describe the SCENE details from the [INPUT SCRIPT]. Do not just describe abstract concepts. If the script is about "Money/Tax", show "A dramatic pile of japanese yen notes burning" or "A stressed family looking at financial documents". Make it concrete.
+         - **COMPOSITION RULE**: The main subject/action MUST be positioned on the **RIGHT 30%** of the frame. The **LEFT 70%** must be relatively empty/dark or have negative space.
+         - STYLE: Incorporate elements from the [STYLE GUIDE] (Lighting, Colors, Mood).
+         - QUALITY: 8k resolution, cinematic lighting, hyper-realistic (unless style says otherwise).
+         - NO TEXT in the image prompt.
+      
+      OUTPUT FORMAT (JSON):
+      {
+        "lines": ["Line 1", "Line 2", "Line 3", "Line 4"],
+        "backgroundPrompt": "detailed english description..."
+      }
+    `;
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    return JSON.parse(result.response.text());
   });
 };

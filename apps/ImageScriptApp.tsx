@@ -19,41 +19,7 @@ interface TagItemRef {
     getPrompts: () => string[];
 }
 
-// --- COMPONENT: ErrorBoundary ---
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
-    state = { hasError: false, error: null };
-
-    constructor(props: { children: React.ReactNode }) {
-        super(props);
-    }
-
-    static getDerivedStateFromError(error: Error) {
-        return { hasError: true, error };
-    }
-
-    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error("ErrorBoundary caught error:", error, errorInfo);
-    }
-
-    render() {
-        if (this.state.hasError) {
-            return (
-                <div className="p-8 m-8 bg-red-50 border border-red-200 rounded-xl space-y-4 text-center">
-                    <h2 className="text-xl font-bold text-red-700">Đã xảy ra lỗi hiển thị</h2>
-                    <p className="text-red-600">{this.state.error?.message}</p>
-                    <button
-                        onClick={() => this.setState({ hasError: false })}
-                        className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-                    >
-                        Thử lại
-                    </button>
-                    <p className="text-xs text-red-400">Dữ liệu của bạn vẫn an toàn trong bộ nhớ (trừ khi tải lại trang).</p>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 // --- SUB-COMPONENT: TagItem ---
 const TagItem = forwardRef<TagItemRef, { tag: ScriptTag; style: string; index: number; apiKey?: string; onNotify: (msg: string, type: 'success' | 'error' | 'info') => void }>(({ tag, style, index, apiKey, onNotify }, ref) => {
@@ -555,7 +521,7 @@ const TagList: React.FC<{ tags: ScriptTag[]; style: string; apiKey?: string; onN
                         style={style}
                         index={idx}
                         apiKey={apiKey}
-                        ref={el => (tagRefs.current[idx] = el)}
+                        ref={el => { tagRefs.current[idx] = el; }}
                         onNotify={onNotify}
                     />
                 ))}

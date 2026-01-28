@@ -376,17 +376,17 @@ const ImageScriptApp: React.FC<ImageScriptAppProps> = ({ userId }) => {
                 const retrySplit = await handleSplitRows(tagId);
                 if (!retrySplit) break;
             }
-            await delay(15000);
+            await delay(10000);
             let genSuccess = await handleGeneratePrompts(tagId);
             if (!genSuccess) {
-                await delay(15000);
+                await delay(10000);
                 genSuccess = await handleGeneratePrompts(tagId);
             }
             if (!genSuccess) {
                 const proceed = confirm(`TAG ${tagId} không thể tạo prompt sau 2 lần thử. Bạn có muốn tiếp tục các TAG sau không?`);
                 if (!proceed) break;
             }
-            await delay(15000);
+            await delay(10000);
         }
 
         setIsAutoRunning(false);

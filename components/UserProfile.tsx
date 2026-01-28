@@ -6,16 +6,20 @@ interface UserProfileProps {
     user: User;
     onUpdateUser: (updatedUser: User) => void;
     onClose: () => void;
+    appNames?: Record<string, string>;
+    onUpdateAppNames?: () => void;
 }
 
 import AdminUserManagement from './AdminUserManagement';
+import AppConfigModal from './AppConfigModal';
 
-const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateUser, onClose }) => {
+const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateUser, onClose, appNames = {}, onUpdateAppNames = () => { } }) => {
     const [email, setEmail] = useState(user.email || '');
     const [phone, setPhone] = useState(user.phone || '');
     const [password, setPassword] = useState(''); // Only used if user wants to change
     const [message, setMessage] = useState('');
     const [showAdminPanel, setShowAdminPanel] = useState(false);
+    const [showAppConfig, setShowAppConfig] = useState(false);
 
     const handleSave = () => {
         const users = JSON.parse(localStorage.getItem('app_users') || '{}');
@@ -44,6 +48,16 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateUser, onClose }
 
     if (showAdminPanel) {
         return <AdminUserManagement onClose={() => setShowAdminPanel(false)} />;
+    }
+
+    if (showAppConfig) {
+        return (
+            <AppConfigModal
+                currentNames={appNames}
+                onClose={() => setShowAppConfig(false)}
+                onUpdate={onUpdateAppNames}
+            />
+        );
     }
 
     return (
@@ -109,13 +123,22 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateUser, onClose }
 
                     <div className="pt-4 border-t border-white/5 flex justify-between gap-3 items-center">
                         {user.role === 'admin' ? (
-                            <button
-                                onClick={() => setShowAdminPanel(true)}
-                                className="px-4 py-2 rounded-lg text-sm font-bold bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-all uppercase tracking-wider flex items-center gap-2"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                                Admin Panel
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowAdminPanel(true)}
+                                    className="px-4 py-2 rounded-lg text-sm font-bold bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-all uppercase tracking-wider flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                                    Admin Panel
+                                </button>
+                                <button
+                                    onClick={() => setShowAppConfig(true)}
+                                    className="px-4 py-2 rounded-lg text-sm font-bold bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-all uppercase tracking-wider flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                    Manage App Names
+                                </button>
+                            </div>
                         ) : <div></div>}
 
                         <div className="flex gap-3">

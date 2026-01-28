@@ -7,38 +7,89 @@ import ImageScriptApp from './apps/ImageScriptApp';
 import ZenShotApp from './apps/ZenShotApp';
 import LandingPage from './apps/LandingPage';
 import TranslationApp from './apps/TranslationApp';
+
 import NewToolApp from './apps/NewToolApp';
+
+
 
 import UserProfile from './components/UserProfile';
 import { User } from './types';
+
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './services/firebase';
+import { authService } from './services/authService';
+import { appConfigService } from './services/appConfigService';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'video-viral' | 'image-script' | 'zenshot-ai' | 'translation' | 'new-tool'>('home');
   const [showProfile, setShowProfile] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const [appNames, setAppNames] = useState<Record<string, string>>({});
 
-  // Load user session on mount
+  const fetchAppNames = async () => {
+    const names = await appConfigService.getAppNames();
+    setAppNames(names);
+  };
+
   useEffect(() => {
-    const savedUser = localStorage.getItem('app_current_user');
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    }
+    fetchAppNames();
+  }, []);
+
+  // Listen to Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // User is signed in, fetch profile from Firestore
+        const profile = await authService.getUserProfile(user.uid);
+        if (profile) {
+          setCurrentUser(profile);
+        } else {
+          // Fallback if profile missing (rare sync issue)
+          const fallbackUser: User = {
+            id: user.uid,
+            username: user.displayName || user.email?.split('@')[0] || 'User',
+            email: user.email || '',
+            role: 'user',
+            createdAt: Date.now()
+          };
+          setCurrentUser(fallbackUser);
+        }
+      } else {
+        // User is signed out
+        setCurrentUser(null);
+      }
+      setInitializing(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
-    localStorage.setItem('app_current_user', JSON.stringify(user));
+    // No need to set localStorage, Firebase handles session
   };
 
   const handleUpdateUser = (updatedUser: User) => {
     setCurrentUser(updatedUser);
-    localStorage.setItem('app_current_user', JSON.stringify(updatedUser));
+    // In real app, we should also update Firestore here if needed, 
+    // but UserProfile component likely calls an update service. 
+    // For now we just update local state to reflect changes immediately.
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('app_current_user');
+  const handleLogout = async () => {
+    setInitializing(true);
+    await authService.logoutUser();
+    // State update will be handled by onAuthStateChanged
   };
+
+  if (initializing) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <Auth onLogin={handleLogin} />;
@@ -75,7 +126,7 @@ const App: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
             >
-              Video Viral Engine
+              {appNames['video-viral'] || 'Video Viral Engine'}
             </button>
           )}
 
@@ -87,7 +138,7 @@ const App: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
             >
-              Visual Script Engine
+              {appNames['image-script'] || 'Visual Script Engine'}
             </button>
           )}
 
@@ -99,7 +150,7 @@ const App: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
             >
-              ZenShot AI (New)
+              {appNames['zenshot-ai'] || 'ZenShot AI (New)'}
             </button>
           )}
 
@@ -111,9 +162,13 @@ const App: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
             >
-              Translation AI
+              {appNames['translation'] || 'Translation AI'}
             </button>
           )}
+
+
+
+
 
           {(currentUser.role === 'admin' || currentUser.allowedApps?.includes('new-tool')) && (
             <button
@@ -123,7 +178,7 @@ const App: React.FC = () => {
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
             >
-              New Application
+              {appNames['new-tool'] || 'New Application'}
             </button>
           )}
         </div>
@@ -143,10 +198,11 @@ const App: React.FC = () => {
       {/* 3. Content Area */}
       <div className="w-full h-[calc(100vh-140px)]">
         {activeTab === 'home' && <LandingPage key={currentUser.id} user={currentUser} onNavigate={setActiveTab} />}
-        {activeTab === 'video-viral' && <VideoViralApp key={currentUser.id} />}
+        {activeTab === 'video-viral' && <VideoViralApp key={currentUser.id} userId={currentUser.id} />}
         {activeTab === 'image-script' && <ImageScriptApp key={currentUser.id} userId={currentUser.id} />}
         {activeTab === 'zenshot-ai' && <ZenShotApp key={currentUser.id} userId={currentUser.id} />}
         {activeTab === 'translation' && <TranslationApp key={currentUser.id} userId={currentUser.id} />}
+
         {activeTab === 'new-tool' && <NewToolApp key={currentUser.id} />}
       </div>
 
@@ -155,6 +211,8 @@ const App: React.FC = () => {
           user={currentUser}
           onUpdateUser={handleUpdateUser}
           onClose={() => setShowProfile(false)}
+          appNames={appNames}
+          onUpdateAppNames={fetchAppNames}
         />
       )}
     </div>

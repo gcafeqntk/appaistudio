@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 
+import { authService } from '../services/authService';
+
 interface AuthProps {
     onLogin: (user: User) => void;
 }
@@ -14,84 +16,52 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleAuth = () => {
+    const handleAuth = async () => {
         setError('');
+        setLoading(true);
 
-        if (!username || !password) {
-            setError('Vui lòng nhập đầy đủ thông tin đăng nhập');
+        if (!email || !password) {
+            setError('Vui lòng nhập Email và Mật khẩu');
+            setLoading(false);
             return;
         }
 
-        const users = JSON.parse(localStorage.getItem('app_users') || '{}');
-
-        if (isRegistering) {
-            if (!email || !phone) {
-                setError('Vui lòng nhập đầy đủ Email và Số điện thoại');
-                return;
-            }
-            if (password !== confirmPassword) {
-                setError('Mật khẩu nhập lại không khớp');
-                return;
-            }
-            if (users[username]) {
-                setError('Tên đăng nhập đã tồn tại');
-                return;
-            }
-
-            const newUser: User & { password: string } = {
-                id: 'user_' + new Date().getTime(),
-                username,
-                password,
-                email,
-                phone,
-                role: 'user', // Default role
-                allowedApps: [], // Default locked pending admin approval
-                createdAt: Date.now()
-            };
-
-            // Auto-promote specific user during registration if needed, or handle exclusively in App.tsx
-            if (username === 'huytamky') {
-                newUser.role = 'admin';
-            }
-
-            users[username] = newUser;
-            localStorage.setItem('app_users', JSON.stringify(users));
-
-            // Return user without password
-            const separateUser: User = { ...newUser };
-            // @ts-ignore
-            delete separateUser.password;
-
-            onLogin(separateUser);
-        } else {
-            const user = users[username];
-            if (user && user.password === password) {
-                // Determine role dynamically if it's the specific user (legacy support or force update)
-                let role = user.role || 'user';
-                if (username === 'huytamky') role = 'admin';
-
-                // Update user object with potentially new structure if missing
-                const updatedUser: User = {
-                    id: user.id,
-                    username: user.username,
-                    email: user.email || '',
-                    phone: user.phone || '',
-                    role: role,
-                    allowedApps: user.allowedApps || ['video-viral', 'image-script', 'translation'],
-                    createdAt: user.createdAt || Date.now()
-                };
-
-                // Save back if changed (migration)
-                if (!user.role || !user.allowedApps) {
-                    users[username] = { ...user, ...updatedUser };
-                    localStorage.setItem('app_users', JSON.stringify(users));
+        try {
+            let user: User;
+            if (isRegistering) {
+                if (!username || !phone) {
+                    setError('Vui lòng nhập đầy đủ Tên và SĐT');
+                    setLoading(false);
+                    return;
+                }
+                if (password !== confirmPassword) {
+                    setError('Mật khẩu nhập lại không khớp');
+                    setLoading(false);
+                    return;
                 }
 
-                onLogin(updatedUser);
+                user = await authService.registerUser(email, password, username, phone);
             } else {
-                setError('Tên đăng nhập hoặc mật khẩu sai');
+                user = await authService.loginUser(email, password);
             }
+            onLogin(user);
+        } catch (err: any) {
+            console.error(err);
+            if (err.code === 'auth/email-already-in-use') {
+                setError('Email này đã được sử dụng.');
+            } else if (err.code === 'auth/invalid-email') {
+                setError('Địa chỉ Email không hợp lệ (Ví dụ: ten@gmail.com).');
+            } else if (err.code === 'auth/invalid-credential') {
+                setError('Email hoặc mật khẩu không đúng.');
+            } else if (err.code === 'auth/weak-password') {
+                setError('Mật khẩu quá yếu (cần ít nhất 6 ký tự).');
+            } else {
+                setError('Đã có lỗi xảy ra: ' + err.message);
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -103,37 +73,38 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 </h2>
 
                 <div className="space-y-4">
+                    {isRegistering && (
+                        <div>
+                            <label className="block text-xs uppercase font-bold text-slate-400 mb-2">Tên hiển thị</label>
+                            <input
+                                type="text"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                        </div>
+                    )}
+
                     <div>
-                        <label className="block text-xs uppercase font-bold text-slate-400 mb-2">Tên đăng nhập</label>
+                        <label className="block text-xs uppercase font-bold text-slate-400 mb-2">Email</label>
                         <input
-                            type="text"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                     </div>
 
                     {isRegistering && (
-                        <>
-                            <div>
-                                <label className="block text-xs uppercase font-bold text-slate-400 mb-2">Email</label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs uppercase font-bold text-slate-400 mb-2">Số điện thoại</label>
-                                <input
-                                    type="tel"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                            </div>
-                        </>
+                        <div>
+                            <label className="block text-xs uppercase font-bold text-slate-400 mb-2">Số điện thoại</label>
+                            <input
+                                type="tel"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                        </div>
                     )}
 
                     <div>
@@ -162,9 +133,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
                     <button
                         onClick={handleAuth}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-colors mt-4"
+                        disabled={loading}
+                        className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-colors mt-4 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
-                        {isRegistering ? 'Đăng Ký' : 'Đăng Nhập'}
+                        {loading ? 'Đang xử lý...' : (isRegistering ? 'Đăng Ký' : 'Đăng Nhập')}
                     </button>
 
                     <p className="text-center text-slate-400 text-sm mt-4 cursor-pointer hover:text-white" onClick={() => setIsRegistering(!isRegistering)}>

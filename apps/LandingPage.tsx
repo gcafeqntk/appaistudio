@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
-import RichTextEditor from '../components/RichTextEditor';
+import RichTextEditor, { RichTextEditorHandle } from '../components/RichTextEditor';
+import ImageUpload from '../components/ImageUpload';
+import { useRef } from 'react';
 
 interface LandingPageProps {
     user: User;
@@ -12,6 +14,7 @@ interface NewsItem {
     id: string;
     title: string;
     content: string;
+    imageUrl?: string;
     date: number;
     author: string;
 }
@@ -36,6 +39,73 @@ interface AppSettings {
     sidebarWidgets?: SidebarWidget[];
 }
 
+const ExpandableNewsItem = ({ news, formatDate, onImageClick }: { news: NewsItem; formatDate: (ts: number) => string; onImageClick: (src: string) => void }) => {
+    const [expanded, setExpanded] = useState(false);
+
+    // Strip HTML tags to count words (approximate)
+    const stripHtml = (html: string) => {
+        const tmp = document.createElement('DIV');
+        tmp.innerHTML = html;
+        return tmp.textContent || tmp.innerText || '';
+    };
+
+    const textContent = stripHtml(news.content);
+    const words = textContent.split(/\s+/).filter(w => w.length > 0);
+    const isLong = words.length > 50;
+
+    return (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+            <h3 className="text-xl font-bold text-indigo-700 mb-2">{news.title}</h3>
+            <div className="text-xs text-gray-400 mb-4">{formatDate(news.date)} | Bởi {news.author}</div>
+
+            {news.imageUrl && (
+                <div className="mb-4 rounded-xl overflow-hidden cursor-zoom-in shadow-sm hover:shadow-md transition-all">
+                    <img
+                        src={news.imageUrl}
+                        alt={news.title}
+                        className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onImageClick(news.imageUrl!);
+                        }}
+                    />
+                </div>
+            )}
+
+            <div
+                className={`prose prose-slate max-w-none ${!expanded && isLong ? 'line-clamp-3' : ''}`}
+                onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.tagName === 'IMG') {
+                        e.stopPropagation();
+                        onImageClick((target as HTMLImageElement).src);
+                    }
+                }}
+            >
+                {expanded || !isLong ? (
+                    <div
+                        dangerouslySetInnerHTML={{ __html: news.content }}
+                        className="[&_img]:cursor-zoom-in [&_img]:rounded-lg [&_img]:shadow-sm hover:[&_img]:shadow-md [&_img]:transition-all"
+                    />
+                ) : (
+                    <div>
+                        <p>{words.slice(0, 50).join(' ')}...</p>
+                    </div>
+                )}
+            </div>
+
+            {isLong && (
+                <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="mt-3 text-sm font-bold text-indigo-600 hover:text-indigo-800 underline decoration-2 underline-offset-4"
+                >
+                    {expanded ? 'Thu gọn' : 'Xem thêm'}
+                </button>
+            )}
+        </div>
+    );
+};
+
 const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
     const [settings, setSettings] = useState<AppSettings>({
         layout: 'modern',
@@ -50,9 +120,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
     // Admin State
     const [editingNews, setEditingNews] = useState<Partial<NewsItem>>({});
     const [isEditing, setIsEditing] = useState(false);
+    const textEditorRef = useRef<RichTextEditorHandle>(null);
 
     // Pending Settings for Sidebar
+    // Pending Settings for Sidebar
     const [pendingSettings, setPendingSettings] = useState<AppSettings | null>(null);
+
+    // Lightbox State
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
     useEffect(() => {
         const saved = localStorage.getItem('app_settings');
@@ -117,6 +192,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
             id: editingNews.id || crypto.randomUUID(),
             title: editingNews.title,
             content: editingNews.content,
+            imageUrl: editingNews.imageUrl, // Added imageUrl
             date: editingNews.date || Date.now(),
             author: user.username
         };
@@ -198,53 +274,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
         saveSettings({ ...settings, news: newNews });
     };
 
-    // --- COMPONENT: Expandable News Item ---
-    const ExpandableNewsItem = ({ news, formatDate }: { news: NewsItem; formatDate: (ts: number) => string }) => {
-        const [expanded, setExpanded] = useState(false);
-
-        // Strip HTML tags to count words (approximate)
-        const stripHtml = (html: string) => {
-            const tmp = document.createElement('DIV');
-            tmp.innerHTML = html;
-            return tmp.textContent || tmp.innerText || '';
-        };
-
-        const textContent = stripHtml(news.content);
-        const words = textContent.split(/\s+/).filter(w => w.length > 0);
-        const isLong = words.length > 50;
-
-        return (
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                <h3 className="text-xl font-bold text-indigo-700 mb-2">{news.title}</h3>
-                <div className="text-xs text-gray-400 mb-4">{formatDate(news.date)} | Bởi {news.author}</div>
-
-                <div className={`prose prose-slate max-w-none ${!expanded && isLong ? 'line-clamp-3' : ''}`}>
-                    {/* If expanded or short, show full HTML. If collapsed and long, we ideally show truncated text or just hide overflow with CSS line-clamp as a simple visual fallback, but user asked for "click to see more" specifically involving 50 words. 
-                       However, purely mixing HTML truncation is hard. 
-                       Let's use a CSS-based approach for the 'preview' which is safer for HTML content, 
-                       OR if we strictly want 50 words text preview: */}
-
-                    {expanded || !isLong ? (
-                        <div dangerouslySetInnerHTML={{ __html: news.content }} />
-                    ) : (
-                        <div>
-                            <p>{words.slice(0, 50).join(' ')}...</p>
-                        </div>
-                    )}
-                </div>
-
-                {isLong && (
-                    <button
-                        onClick={() => setExpanded(!expanded)}
-                        className="mt-3 text-sm font-bold text-indigo-600 hover:text-indigo-800 underline decoration-2 underline-offset-4"
-                    >
-                        {expanded ? 'Thu gọn' : 'Xem thêm'}
-                    </button>
-                )}
-            </div>
-        );
-    };
-
     // --- LAYOUTS ---
 
     const LayoutModern = () => (
@@ -310,10 +339,29 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                 <span>{formatDate(news.date)}</span>
                                 <span className="text-indigo-500">{news.author}</span>
                             </div>
+
+                            {news.imageUrl && (
+                                <div className="mb-3 rounded-lg overflow-hidden h-40 w-full relative">
+                                    <img
+                                        src={news.imageUrl}
+                                        alt={news.title}
+                                        className="absolute inset-0 w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500 cursor-zoom-in"
+                                        onClick={() => setSelectedImage(news.imageUrl!)}
+                                    />
+                                </div>
+                            )}
+
                             <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-indigo-600 transition-colors line-clamp-2">{news.title}</h3>
                             <div
-                                className="prose prose-sm text-gray-500 line-clamp-4"
+                                className="prose prose-sm text-gray-500 line-clamp-4 [&_img]:cursor-zoom-in"
                                 dangerouslySetInnerHTML={{ __html: news.content }}
+                                onClick={(e) => {
+                                    const target = e.target as HTMLElement;
+                                    if (target.tagName === 'IMG') {
+                                        e.stopPropagation();
+                                        setSelectedImage((target as HTMLImageElement).src);
+                                    }
+                                }}
                             />
                             <button className="mt-6 text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-2 group/btn">
                                 Xem chi tiết
@@ -366,7 +414,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                         <div className="space-y-6">
                             <h2 className="text-2xl font-bold text-gray-800">Cập nhật hệ thống</h2>
                             {settings.news.map(news => (
-                                <ExpandableNewsItem key={news.id} news={news} formatDate={formatDate} />
+                                <ExpandableNewsItem
+                                    key={news.id}
+                                    news={news}
+                                    formatDate={formatDate}
+                                    onImageClick={setSelectedImage}
+                                />
                             ))}
                         </div>
                     </div>
@@ -417,6 +470,30 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </button>
+                </div>
+            )}
+
+            {/* IMAGE LIGHTBOX */}
+            {selectedImage && (
+                <div
+                    className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300"
+                    onClick={() => setSelectedImage(null)}
+                >
+                    <div className="relative max-w-full max-h-full flex flex-col items-center">
+                        <img
+                            src={selectedImage}
+                            alt="Full View"
+                            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <button
+                            onClick={() => setSelectedImage(null)}
+                            className="mt-6 bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-full backdrop-blur-md border border-white/20 font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            Đóng hình ảnh
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -555,22 +632,54 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                 </div>
 
                                 {isEditing ? (
-                                    <div className="flex-grow flex flex-col space-y-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Tiêu đề bài viết..."
-                                            value={editingNews.title || ''}
-                                            onChange={e => setEditingNews({ ...editingNews, title: e.target.value })}
-                                            className="bg-slate-800 border-slate-700 text-white p-3 rounded-lg outline-none focus:border-indigo-500"
-                                        />
-                                        <div className="flex-grow flex flex-col">
-                                            <RichTextEditor
-                                                value={editingNews.content || ''}
-                                                onChange={html => setEditingNews({ ...editingNews, content: html })}
-                                                className="flex-grow h-full"
+                                    <div className="flex-grow flex flex-col min-h-0">
+                                        <div className="flex-grow overflow-y-auto pr-2 space-y-4">
+                                            <input
+                                                type="text"
+                                                placeholder="Tiêu đề bài viết..."
+                                                value={editingNews.title || ''}
+                                                onChange={e => setEditingNews({ ...editingNews, title: e.target.value })}
+                                                className="bg-slate-800 border-slate-700 text-white p-3 rounded-lg outline-none focus:border-indigo-500 w-full"
                                             />
+
+                                            <div className="flex flex-col min-h-[300px]">
+                                                <RichTextEditor
+                                                    ref={textEditorRef}
+                                                    value={editingNews.content || ''}
+                                                    onChange={html => setEditingNews({ ...editingNews, content: html })}
+                                                    className="flex-grow h-full"
+                                                />
+                                            </div>
+
+                                            {/* Emoji Toolbar (Content) */}
+                                            <div className="flex gap-2 flex-wrap pt-2 pb-2">
+                                                {['📢', '🔴', '🔔', '📣', '⚠️', '📌', '📍', '📞', '📩', '🎁', '🎉', '🆕', '🆙', 'Ok', '✅'].map(emoji => (
+                                                    <button
+                                                        type="button"
+                                                        key={emoji}
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            textEditorRef.current?.insertText(emoji);
+                                                        }}
+                                                        className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-sm transition-colors"
+                                                        title="Chèn vào nội dung"
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                                <span className="text-[10px] text-slate-500 self-center ml-2 uppercase font-bold tracking-wider opacity-60">Click để chèn vào nội dung</span>
+                                            </div>
+
+                                            <div className="pt-2">
+                                                <ImageUpload
+                                                    currentImage={editingNews.imageUrl}
+                                                    onImageUploaded={(url) => setEditingNews({ ...editingNews, imageUrl: url })}
+                                                    onClear={() => setEditingNews({ ...editingNews, imageUrl: undefined })}
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="flex justify-end gap-3 pt-2">
+
+                                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-700 mt-2 flex-shrink-0 bg-[#0f172a]">
                                             <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-400 hover:text-white">Hủy</button>
                                             <button onClick={handleSaveNews} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold">Lưu Tin</button>
                                         </div>

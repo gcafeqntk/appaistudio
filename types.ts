@@ -27,7 +27,6 @@ export interface ActionDetail {
   action: string;
   voiceText: string;
   motionPrompt: string;
-  imagePrompt: string;
 }
 
 export interface TagData {
@@ -112,4 +111,10 @@ export interface TranslationState {
   totalBatches: number;
   error?: string;
   result?: string;
+}
+
+
+
+export interface AppConfig {
+  appNames: Record<string, string>;
 }

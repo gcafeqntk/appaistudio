@@ -1,7 +1,7 @@
 
 import React, { useState, useImperativeHandle, forwardRef } from 'react';
 import { ScriptTag } from '../../../types';
-import { analyzeScriptScenes, splitScriptRows, generateImagePrompts, generateVideoPrompts } from '../../../services/image_script_gemini';
+import { analyzeScriptScenes, splitScriptRows, generateImagePrompts, generateVideoPrompts } from '../../../services/visual_script_gemini';
 
 interface TagItemProps {
     tag: ScriptTag;
@@ -25,7 +25,7 @@ const TagItem = forwardRef<TagItemRef, TagItemProps>(({ tag, style, index, apiKe
     const handleAnalyze = async () => {
         setIsLoading(prev => ({ ...prev, analyze: true }));
         try {
-            const result = await analyzeScriptScenes(apiKey, localTag.content);
+            const result = await analyzeScriptScenes(localTag.content, apiKey);
             setLocalTag(prev => ({
                 ...prev,
                 analysis: result.breakdown,
@@ -51,7 +51,7 @@ const TagItem = forwardRef<TagItemRef, TagItemProps>(({ tag, style, index, apiKe
         }
         setIsLoading(prev => ({ ...prev, split: true }));
         try {
-            const rows = await splitScriptRows(apiKey, localTag.content, targetAnalysis, targetCount);
+            const rows = await splitScriptRows(localTag.content, targetAnalysis, targetCount, apiKey);
             setLocalTag(prev => ({ ...prev, rows }));
             return rows;
         } catch (err) {
@@ -71,7 +71,7 @@ const TagItem = forwardRef<TagItemRef, TagItemProps>(({ tag, style, index, apiKe
         }
         setIsLoading(prev => ({ ...prev, prompt: true }));
         try {
-            const prompts = await generateImagePrompts(apiKey, targetRows, style);
+            const prompts = await generateImagePrompts(localTag.rows, style, apiKey);
             setLocalTag(prev => ({ ...prev, prompts }));
             return prompts;
         } catch (err) {
@@ -90,7 +90,7 @@ const TagItem = forwardRef<TagItemRef, TagItemProps>(({ tag, style, index, apiKe
         }
         setIsLoading(prev => ({ ...prev, videoPrompt: true }));
         try {
-            const videoPrompts = await generateVideoPrompts(apiKey, localTag.rows, localTag.prompts || []);
+            const videoPrompts = await generateVideoPrompts(localTag.rows, localTag.prompts || [], apiKey);
             setLocalTag(prev => ({ ...prev, videoPrompts }));
         } catch (err) {
             console.error(err);
@@ -118,11 +118,11 @@ const TagItem = forwardRef<TagItemRef, TagItemProps>(({ tag, style, index, apiKe
     useImperativeHandle(ref, () => ({
         runAutoSequence: async () => {
             const analysisResult = await handleAnalyze();
-            await delay(5000);
+            await delay(10000);
             const rowsResult = await handleSplitRows(analysisResult.breakdown, analysisResult.count);
-            await delay(5000);
+            await delay(10000);
             await handleGeneratePrompts(rowsResult);
-            await delay(5000);
+            await delay(10000);
         },
         getRows: () => localTag.rows || [],
         getPrompts: () => localTag.prompts || []

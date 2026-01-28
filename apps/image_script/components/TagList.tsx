@@ -149,7 +149,7 @@ const TagList: React.FC<TagListProps> = ({ tags, style, apiKey }) => {
                         style={style}
                         index={idx}
                         apiKey={apiKey}
-                        ref={el => (tagRefs.current[idx] = el)}
+                        ref={el => { tagRefs.current[idx] = el; }}
                     />
                 ))}
             </div>

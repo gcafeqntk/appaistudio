@@ -311,12 +311,12 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
         showNotification("Đã sao chép prompt!", 'success');
     };
 
-    const copyAllPrompts = (actions: ActionDetail[], type: 'image' | 'video') => {
+    const copyAllPrompts = (actions: ActionDetail[]) => {
         const text = actions
-            .map(act => type === 'image' ? act.imagePrompt : act.motionPrompt)
+            .map(act => act.motionPrompt)
             .join('\n');
         navigator.clipboard.writeText(text);
-        showNotification(`Đã sao chép tất cả prompt ${type === 'image' ? 'hình ảnh' : 'video'}!`, 'success');
+        showNotification('Đã sao chép tất cả prompt video!', 'success');
     };
 
     return (
@@ -608,14 +608,7 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                                                                                 </div>
                                                                                 <div className="flex gap-4">
                                                                                     <button
-                                                                                        onClick={() => copyAllPrompts(tag.actions, 'image')}
-                                                                                        disabled={tag.actions.length === 0}
-                                                                                        className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm border border-rose-100 disabled:opacity-30"
-                                                                                    >
-                                                                                        Copy All Ảnh
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => copyAllPrompts(tag.actions, 'video')}
+                                                                                        onClick={() => copyAllPrompts(tag.actions)}
                                                                                         disabled={tag.actions.length === 0}
                                                                                         className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm border border-indigo-100 disabled:opacity-30"
                                                                                     >
@@ -659,32 +652,15 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                                                                                                     </div>
                                                                                                 </div>
 
-                                                                                                {/* Prompts Section */}
-                                                                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                                                                                    {/* Video Prompt */}
-                                                                                                    <div className="bg-[#FFF1F2] border-l-[10px] border-rose-400 p-10 rounded-[2.5rem] relative group shadow-lg">
-                                                                                                        <div className="flex items-center justify-between mb-4">
-                                                                                                            <div className="text-[10px] font-black text-rose-400 uppercase tracking-[0.3em]">Video Motion AI Prompt</div>
-                                                                                                            <button onClick={() => copyToClipboard(act.motionPrompt)} className="bg-white/80 hover:bg-white p-2 rounded-lg text-rose-500 shadow-sm transition-all active:scale-90">
-                                                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                                                                                                            </button>
-                                                                                                        </div>
-                                                                                                        <div className="text-sm font-bold text-rose-950 leading-relaxed italic bg-white/40 p-6 rounded-2xl border border-rose-200">
-                                                                                                            {act.motionPrompt}
-                                                                                                        </div>
+                                                                                                <div className="bg-[#FFF1F2] border-l-[10px] border-rose-400 p-10 rounded-[2.5rem] relative group shadow-lg">
+                                                                                                    <div className="flex items-center justify-between mb-4">
+                                                                                                        <div className="text-[10px] font-black text-rose-400 uppercase tracking-[0.3em]">Video Motion AI Prompt</div>
+                                                                                                        <button onClick={() => copyToClipboard(act.motionPrompt)} className="bg-white/80 hover:bg-white p-2 rounded-lg text-rose-500 shadow-sm transition-all active:scale-90">
+                                                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                                                                                        </button>
                                                                                                     </div>
-
-                                                                                                    {/* Image Prompt */}
-                                                                                                    <div className="bg-emerald-50 border-l-[10px] border-emerald-400 p-10 rounded-[2.5rem] relative group shadow-lg">
-                                                                                                        <div className="flex items-center justify-between mb-4">
-                                                                                                            <div className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.3em]">Stable Image AI Prompt</div>
-                                                                                                            <button onClick={() => copyToClipboard(act.imagePrompt)} className="bg-white/80 hover:bg-white p-2 rounded-lg text-emerald-500 shadow-sm transition-all active:scale-90">
-                                                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                                                                                                            </button>
-                                                                                                        </div>
-                                                                                                        <div className="text-sm font-bold text-emerald-950 leading-relaxed italic bg-white/40 p-6 rounded-2xl border border-emerald-200">
-                                                                                                            {act.imagePrompt}
-                                                                                                        </div>
+                                                                                                    <div className="text-sm font-bold text-rose-950 leading-relaxed italic bg-white/40 p-6 rounded-2xl border border-rose-200">
+                                                                                                        {act.motionPrompt}
                                                                                                     </div>
                                                                                                 </div>
                                                                                             </div>
@@ -725,7 +701,7 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                     <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 mt-4">AI Viral Content Engine © 2024</p>
                 </footer>
             </React.Fragment>
-        </ErrorBoundary>
+        </ErrorBoundary >
     );
 };
 
