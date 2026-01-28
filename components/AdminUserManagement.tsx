@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, UserRole } from '../types';
+import { supabase } from '../services/supabase';
 
 interface AdminUserManagementProps {
     onClose: () => void;
@@ -17,42 +18,62 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ onClose }) =>
     const [users, setUsers] = useState<Record<string, User>>({});
     const [searchTerm, setSearchTerm] = useState('');
 
-    const loadUsers = () => {
-        const storedUsers = JSON.parse(localStorage.getItem('app_users') || '{}');
-        setUsers(storedUsers);
+    const loadUsers = async () => {
+        const { data, error } = await supabase.from('users').select('*');
+        if (data) {
+            const userMap: Record<string, User> = {};
+            data.forEach((u: any) => {
+                userMap[u.username] = {
+                    id: u.id,
+                    username: u.username,
+                    email: u.email,
+                    phone: u.phone,
+                    role: u.role,
+                    allowedApps: u.allowed_apps,
+                    createdAt: new Date(u.created_at).getTime()
+                };
+            });
+            setUsers(userMap);
+        }
     };
 
     useEffect(() => {
         loadUsers();
     }, []);
 
-    const handleToggleApp = (username: string, appId: string) => {
-        const updatedUsers = { ...users };
-        const user = updatedUsers[username];
+    const handleToggleApp = async (username: string, appId: string) => {
+        const user = users[username];
+        if (!user) return;
 
-        if (!user.allowedApps) {
-            user.allowedApps = [];
-        }
-
-        if (user.allowedApps.includes(appId)) {
-            user.allowedApps = user.allowedApps.filter(id => id !== appId);
+        let newApps = user.allowedApps ? [...user.allowedApps] : [];
+        if (newApps.includes(appId)) {
+            newApps = newApps.filter(id => id !== appId);
         } else {
-            user.allowedApps.push(appId);
+            newApps.push(appId);
         }
 
-        setUsers(updatedUsers);
-        localStorage.setItem('app_users', JSON.stringify(updatedUsers));
+        // Optimistic update
+        setUsers(prev => ({
+            ...prev,
+            [username]: { ...prev[username], allowedApps: newApps }
+        }));
 
-        // If updating self, might need to refresh page or rely on App.tsx re-mount, 
-        // but typically admin updates others.
+        // DB update
+        await supabase.from('users').update({ allowed_apps: newApps }).eq('id', user.id);
     };
 
-    const handleRoleChange = (username: string) => {
-        const updatedUsers = { ...users };
-        const user = updatedUsers[username];
-        user.role = user.role === 'admin' ? 'user' : 'admin';
-        setUsers(updatedUsers);
-        localStorage.setItem('app_users', JSON.stringify(updatedUsers));
+    const handleRoleChange = async (username: string) => {
+        const user = users[username];
+        if (!user) return;
+
+        const newRole = user.role === 'admin' ? 'user' : 'admin';
+
+        setUsers(prev => ({
+            ...prev,
+            [username]: { ...prev[username], role: newRole as UserRole }
+        }));
+
+        await supabase.from('users').update({ role: newRole }).eq('id', user.id);
     };
 
     const filteredUsers = (Object.values(users) as User[]).filter(user =>

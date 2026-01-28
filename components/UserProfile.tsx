@@ -12,6 +12,7 @@ interface UserProfileProps {
 
 import AdminUserManagement from './AdminUserManagement';
 import AppConfigModal from './AppConfigModal';
+import { authSupabase } from '../services/authSupabase';
 
 const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateUser, onClose, appNames = {}, onUpdateAppNames = () => { } }) => {
     const [email, setEmail] = useState(user.email || '');
@@ -21,28 +22,20 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateUser, onClose, 
     const [showAdminPanel, setShowAdminPanel] = useState(false);
     const [showAppConfig, setShowAppConfig] = useState(false);
 
-    const handleSave = () => {
-        const users = JSON.parse(localStorage.getItem('app_users') || '{}');
-        const storedUser = users[user.username];
-
-        if (storedUser) {
-            const updatedUser = {
-                ...storedUser,
+    const handleSave = async () => {
+        try {
+            await authSupabase.updateProfile(user.id, {
                 email,
-                phone,
-                ...(password ? { password } : {}) // Update password only if provided
-            };
+                phone
+            });
+            // Update local state
+            onUpdateUser({ ...user, email, phone });
 
-            users[user.username] = updatedUser;
-            localStorage.setItem('app_users', JSON.stringify(users));
-
-            // Allow update without password in state
-            const stateUser = { ...updatedUser };
-            delete stateUser.password;
-
-            onUpdateUser(stateUser);
             setMessage('Cập nhật thành công!');
             setTimeout(() => setMessage(''), 3000);
+        } catch (error) {
+            console.error(error);
+            setMessage('Lỗi khi cập nhật!');
         }
     };
 

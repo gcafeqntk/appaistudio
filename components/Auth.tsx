@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 
-import { authService } from '../services/authService';
+import { authSupabase } from '../services/authSupabase';
 
 interface AuthProps {
     onLogin: (user: User) => void;
@@ -17,6 +17,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     const [phone, setPhone] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const mountedRef = React.useRef(true);
+
+    React.useEffect(() => {
+        return () => { mountedRef.current = false; };
+    }, []);
 
     const handleAuth = async () => {
         setError('');
@@ -29,6 +34,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         }
 
         try {
+            // DEBUG: Alert to track progress online
+            console.log("Starting Auth...");
+
+            // Timeout Promise
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Request timed out (15s)")), 15000)
+            );
+
             let user: User;
             if (isRegistering) {
                 if (!username || !phone) {
@@ -42,26 +55,40 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                     return;
                 }
 
-                user = await authService.registerUser(email, password, username, phone);
+                // Race between Register and Timeout
+                user = await Promise.race([
+                    authSupabase.registerUser(email, password, username, phone),
+                    timeoutPromise
+                ]) as User;
             } else {
-                user = await authService.loginUser(email, password);
+                // Race between Login and Timeout
+                user = await Promise.race([
+                    authSupabase.loginUser(email, password),
+                    timeoutPromise
+                ]) as User;
             }
+
+            console.log("Auth Success:", user);
             onLogin(user);
         } catch (err: any) {
             console.error(err);
-            if (err.code === 'auth/email-already-in-use') {
+            if (err.message.includes("timed out")) {
+                setError("Mạng quá chậm hoặc bị chặn. Vui lòng thử lại!");
+                alert("Lỗi: Quá thời gian chờ (Timeout). Kiểm tra kết nối mạng.");
+            } else if (err.code === 'auth/email-already-in-use') {
                 setError('Email này đã được sử dụng.');
             } else if (err.code === 'auth/invalid-email') {
                 setError('Địa chỉ Email không hợp lệ (Ví dụ: ten@gmail.com).');
-            } else if (err.code === 'auth/invalid-credential') {
-                setError('Email hoặc mật khẩu không đúng.');
+            } else if (err.code === 'auth/invalid-credential' || err.message.includes('Invalid login credentials')) {
+                setError('Sai email hoặc mật khẩu.');
             } else if (err.code === 'auth/weak-password') {
                 setError('Mật khẩu quá yếu (cần ít nhất 6 ký tự).');
             } else {
-                setError('Đã có lỗi xảy ra: ' + err.message);
+                setError('Lỗi: ' + (err.message || "Không xác định"));
+                alert("Lỗi chi tiết: " + err.message);
             }
         } finally {
-            setLoading(false);
+            if (mountedRef.current) setLoading(false);
         }
     };
 
@@ -142,7 +169,33 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                     <p className="text-center text-slate-400 text-sm mt-4 cursor-pointer hover:text-white" onClick={() => setIsRegistering(!isRegistering)}>
                         {isRegistering ? 'Đã có tài khoản? Đăng nhập ngay' : 'Chưa có tài khoản? Đăng ký mới'}
                     </p>
+                    <div className="mt-6 pt-4 border-t border-white/5 text-center">
+                        <span className="text-[10px] uppercase font-black tracking-widest text-emerald-500/50">
+                            System: Supabase V2 (Secure)
+                        </span>
+                    </div>
                 </div>
+
+                {/* TROUBLESHOOT: Reset Data Button */}
+                <div className="mt-8 pt-6 border-t border-white/10 text-center">
+                    <p className="text-slate-500 text-xs mb-3">Gặp sự cố đăng nhập?</p>
+                    <button
+                        onClick={() => {
+                            if (window.confirm("Thao tác này sẽ xóa toàn bộ dữ liệu tạm (Cache/Storage) và tải lại trang. Bạn có chắc chắn?")) {
+                                localStorage.clear();
+                                sessionStorage.clear();
+                                window.location.reload();
+                            }
+                        }}
+                        className="text-xs font-bold text-slate-400 hover:text-red-400 uppercase tracking-wider underline decoration-slate-700 hover:decoration-red-400 underline-offset-4 transition-all"
+                    >
+                        Xóa Cache & Tải Lại App
+                    </button>
+                    <div className="mt-2 text-[10px] text-slate-600">
+                        Sử dụng khi bị lỗi "Timeout" hoặc treo logo
+                    </div>
+                </div>
+
             </div>
         </div>
     );

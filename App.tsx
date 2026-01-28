@@ -15,9 +15,8 @@ import NewToolApp from './apps/NewToolApp';
 import UserProfile from './components/UserProfile';
 import { User } from './types';
 
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './services/firebase';
-import { authService } from './services/authService';
+import { supabase } from './services/supabase';
+import { authSupabase } from './services/authSupabase';
 import { appConfigService } from './services/appConfigService';
 
 const App: React.FC = () => {
@@ -36,33 +35,75 @@ const App: React.FC = () => {
     fetchAppNames();
   }, []);
 
-  // Listen to Firebase Auth state
+  // Listen to Supabase Auth state
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // User is signed in, fetch profile from Firestore
-        const profile = await authService.getUserProfile(user.uid);
-        if (profile) {
-          setCurrentUser(profile);
-        } else {
-          // Fallback if profile missing (rare sync issue)
-          const fallbackUser: User = {
-            id: user.uid,
-            username: user.displayName || user.email?.split('@')[0] || 'User',
-            email: user.email || '',
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        authSupabase.getUserProfile(session.user.id).then(profile => {
+          if (profile) setCurrentUser(profile);
+          else {
+            setCurrentUser({
+              id: session.user.id,
+              username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
+              email: session.user.email,
+              role: 'user',
+              createdAt: Date.now()
+            });
+          }
+        }).catch((err) => {
+          console.error("Profile load error:", err);
+          // Fallback user if profile fails
+          setCurrentUser({
+            id: session.user.id,
+            username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
+            email: session.user.email,
             role: 'user',
             createdAt: Date.now()
-          };
-          setCurrentUser(fallbackUser);
-        }
+          });
+        }).finally(() => {
+          setInitializing(false);
+        });
       } else {
-        // User is signed out
         setCurrentUser(null);
+        setInitializing(false);
       }
-      setInitializing(false);
     });
 
-    return () => unsubscribe();
+    // Listen for changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      try {
+        if (session?.user) {
+          const profile = await authSupabase.getUserProfile(session.user.id);
+          if (profile) setCurrentUser(profile);
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (err) {
+        console.error("Auth state change error:", err);
+      } finally {
+        setInitializing(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Safety Timeout: Force stop loading after 5 seconds if Supabase hangs
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitializing(prev => {
+        if (prev) {
+          console.warn("⚠️ Initialization timed out - Force stopping spinner");
+          // If we timed out, assume the session check failed or is stuck.
+          // We don't necessarily want to clear everything immediately, 
+          // but we should stop the spinner so the user sees the content (or Login screen).
+          return false;
+        }
+        return prev;
+      });
+    }, 5000); // Increased to 5s to allow for network lag
+    return () => clearTimeout(timer);
   }, []);
 
   const handleLogin = (user: User) => {
@@ -79,8 +120,8 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     setInitializing(true);
-    await authService.logoutUser();
-    // State update will be handled by onAuthStateChanged
+    await authSupabase.logoutUser();
+    // State update will be handled by onAuthStateChange
   };
 
   if (initializing) {
