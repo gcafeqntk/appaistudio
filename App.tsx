@@ -89,22 +89,7 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Safety Timeout: Force stop loading after 5 seconds if Supabase hangs
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setInitializing(prev => {
-        if (prev) {
-          console.warn("⚠️ Initialization timed out - Force stopping spinner");
-          // If we timed out, assume the session check failed or is stuck.
-          // We don't necessarily want to clear everything immediately, 
-          // but we should stop the spinner so the user sees the content (or Login screen).
-          return false;
-        }
-        return prev;
-      });
-    }, 5000); // Increased to 5s to allow for network lag
-    return () => clearTimeout(timer);
-  }, []);
+  // Old timeout removed in favor of Emergency Strategy
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -124,10 +109,89 @@ const App: React.FC = () => {
     // State update will be handled by onAuthStateChange
   };
 
+  // State for Emergency Recovery
+  const [showEmergency, setShowEmergency] = useState(false);
+
+  // Safety Timeout: Force show Emergency UI after 8 seconds if Supabase hangs
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (initializing) {
+        console.warn("⚠️ Initialization timed out - Showing Emergency UI");
+        setShowEmergency(true);
+        setInitializing(false);
+      }
+    }, 8000); // 8 seconds absolute limit
+    return () => clearTimeout(timer);
+  }, [initializing]);
+
+  const handleCreateNewProfile = async () => {
+    if (!currentUser) return;
+    try {
+      const { error } = await supabase.from('users').insert({
+        id: currentUser.id,
+        username: currentUser.username,
+        email: currentUser.email,
+        created_at: new Date().toISOString()
+      });
+      if (error) alert("Error creating profile: " + error.message);
+      else window.location.reload();
+    } catch (e: any) {
+      alert("System Error: " + e.message);
+    }
+  }
+
   if (initializing) {
     return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center flex-col gap-4">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        <p className="text-slate-400 text-xs animate-pulse">Loading App Engine...</p>
+      </div>
+    );
+  }
+
+  // Emergency Fallback Screen
+  if (showEmergency) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-[#1e293b] rounded-2xl p-8 border border-red-500/30 shadow-2xl">
+          <h2 className="text-2xl font-bold text-red-500 mb-4">⚠️ Connection Timeout</h2>
+          <p className="text-slate-300 mb-6">
+            The application is taking too long to load. This might be due to a poor network connection or a paused Supabase project.
+          </p>
+          <div className="space-y-4">
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition-all"
+            >
+              Reload Application
+            </button>
+
+            <button
+              onClick={() => {
+                if (window.confirm("Clear all local data and logout?")) {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  window.location.reload();
+                }
+              }}
+              className="w-full py-3 bg-[#0f172a] border border-slate-600 hover:border-red-500 text-slate-400 hover:text-red-400 rounded-lg font-bold transition-all"
+            >
+              Factory Reset (Clear Cache)
+            </button>
+
+            <button
+              onClick={() => {
+                authSupabase.logoutUser().then(() => window.location.reload());
+              }}
+              className="w-full py-3 bg-[#0f172a] border border-slate-600 hover:border-white text-white rounded-lg font-bold transition-all"
+            >
+              Force Logout
+            </button>
+          </div>
+          <div className="mt-8 text-center">
+            <span className="text-[10px] text-slate-600 font-mono">DEBUG: v2.1-EMERGENCY | {new Date().toLocaleTimeString()}</span>
+          </div>
+        </div>
       </div>
     );
   }
