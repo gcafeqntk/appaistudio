@@ -129,6 +129,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
     // Lightbox State
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+    // Widget Viewer State
+    const [viewingWidget, setViewingWidget] = useState<SidebarWidget | null>(null);
+
+    // Admin Panel Mode
+    const [adminMode, setAdminMode] = useState<'news' | 'widget'>('news');
+    const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
+
+
     useEffect(() => {
         const saved = localStorage.getItem('app_settings');
         if (saved) {
@@ -262,6 +270,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
         updatePendingSetting('sidebarWidgets', newWidgets);
     };
 
+    const handleEditWidget = (widget: SidebarWidget) => {
+        setAdminMode('widget');
+        setEditingWidgetId(widget.id);
+    };
+
+    const handleSaveWidget = () => {
+        setAdminMode('news');
+        setEditingWidgetId(null);
+    };
+
     // --- NEWS SORTING LOGIC ---
     const moveNews = (index: number, direction: 'up' | 'down') => {
         // ... (existing logic)
@@ -278,100 +296,129 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
 
     const LayoutModern = () => (
         <div className="flex flex-col h-full overflow-y-auto">
-            {/* Zalo Button */}
-            {settings.zaloPhone && (
-                <a
-                    href={`https://zalo.me/${settings.zaloPhone}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="fixed bottom-24 right-6 z-40 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center gap-2 animate-bounce transition-transform hover:scale-110"
-                    title="Chat Zalo"
-                >
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 5.92 2 10.5c0 2.37 1.17 4.54 3.12 6.13-.15.86-.54 1.95-1.42 2.62-.23.18-.08.57.21.57 2.39 0 4.19-1.29 4.88-1.93.7.13 1.43.21 2.21.21 5.52 0 10-3.92 10-8.5S17.52 2 12 2zm0 15c-.71 0-1.39-.07-2.04-.2-.27-.05-.54.04-.73.23-.74.72-2.12 1.58-3.73 1.66.44-.8 1.05-2.22 1.05-2.22.06-.16.03-.35-.09-.48C4.94 14.54 4 12.63 4 10.5 4 7.02 7.7 4 12 4s8 3.02 8 6.5-3.7 6.5-8 6.5z" /></svg>
-                    <span className="font-bold text-xs">{settings.zaloPhone}</span>
-                </a>
-            )}
+            {viewingWidget ? (
+                <div className="max-w-5xl mx-auto w-full px-6 py-12 animate-in fade-in slide-in-from-right-8">
+                    <button
+                        onClick={() => setViewingWidget(null)}
+                        className="mb-8 flex items-center gap-2 text-indigo-600 font-bold hover:underline"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                        Quay lại Trang chủ
+                    </button>
 
-            {/* Hero Section */}
-            <div className="relative py-24 px-6 md:px-12 text-center overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-[#0f172a] to-slate-900 z-0"></div>
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 z-0"></div>
-                <div className="relative z-10 space-y-6 max-w-4xl mx-auto">
-                    <span className="inline-block py-1 px-3 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-bold uppercase tracking-widest animate-in fade-in slide-in-from-bottom-4">
-                        Hệ thống điều hành AI tập trung
-                    </span>
-                    <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-indigo-400 leading-tight drop-shadow-2xl animate-in zoom-in-95 duration-700">
-                        {settings.welcomeTitle ? processText(settings.welcomeTitle) : 'QUANG HUY AI STUDIO'}
-                    </h1>
-                    <p className="text-lg md:text-xl text-slate-400 font-light max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-6 delay-200">
-                        {settings.welcomeMessage || 'Nền tảng tích hợp đa công cụ mạnh mẽ, giúp bạn tối ưu hóa quy trình sáng tạo Video và Hình ảnh Viral chỉ với một cú click.'}
-                    </p>
-
-                    <div className="flex flex-wrap items-center justify-center gap-4 pt-8 animate-in fade-in slide-in-from-bottom-8 delay-300">
-                        <button
-                            onClick={() => onNavigate('video-viral')}
-                            className="group relative px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/20 transition-all hover:-translate-y-1 active:scale-95 overflow-hidden"
-                        >
-                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 transform skew-y-12"></div>
-                            VIDEO VIRAL ENGINE
-                        </button>
-                        <button
-                            onClick={() => onNavigate('image-script')}
-                            className="px-8 py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-2xl shadow-xl transition-all hover:-translate-y-1 active:scale-95"
-                        >
-                            VISUAL SCRIPT ENGINE
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* News Section */}
-            <div className="max-w-5xl mx-auto w-full px-6 py-16 space-y-12">
-                <div className="flex items-center gap-4">
-                    <h2 className="text-2xl font-bold text-gray-800 border-l-4 border-indigo-600 pl-4 uppercase tracking-wider">Tin Tức Mới Nhất</h2>
-                    <div className="h-px bg-gray-200 flex-grow"></div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {settings.news.map(news => (
-                        <div key={news.id} className="group bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-2xl hover:border-indigo-100 transition-all">
-                            <div className="flex items-center justify-between text-xs text-gray-400 mb-4 font-bold uppercase tracking-wider">
-                                <span>{formatDate(news.date)}</span>
-                                <span className="text-indigo-500">{news.author}</span>
-                            </div>
-
-                            {news.imageUrl && (
-                                <div className="mb-3 rounded-lg overflow-hidden h-40 w-full relative">
-                                    <img
-                                        src={news.imageUrl}
-                                        alt={news.title}
-                                        className="absolute inset-0 w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500 cursor-zoom-in"
-                                        onClick={() => setSelectedImage(news.imageUrl!)}
-                                    />
+                    <div className="bg-white rounded-3xl p-10 shadow-xl border border-indigo-100">
+                        <h1 className="text-4xl font-black text-gray-900 mb-8 border-b pb-4">{viewingWidget.title}</h1>
+                        <div className="prose prose-lg max-w-none text-gray-600 [&_img]:rounded-xl [&_img]:shadow-lg [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-800">
+                            {viewingWidget.type === 'custom' ? (
+                                <div dangerouslySetInnerHTML={{ __html: viewingWidget.content || '' }} />
+                            ) : (
+                                <div>
+                                    {/* Handle other types if needed better */}
+                                    This widget content is dynamic.
                                 </div>
                             )}
-
-                            <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-indigo-600 transition-colors line-clamp-2">{news.title}</h3>
-                            <div
-                                className="prose prose-sm text-gray-500 line-clamp-4 [&_img]:cursor-zoom-in"
-                                dangerouslySetInnerHTML={{ __html: news.content }}
-                                onClick={(e) => {
-                                    const target = e.target as HTMLElement;
-                                    if (target.tagName === 'IMG') {
-                                        e.stopPropagation();
-                                        setSelectedImage((target as HTMLImageElement).src);
-                                    }
-                                }}
-                            />
-                            <button className="mt-6 text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-2 group/btn">
-                                Xem chi tiết
-                                <svg className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-                            </button>
                         </div>
-                    ))}
-                    {settings.news.length === 0 && <p className="text-gray-400 italic">Chưa có tin tức nào.</p>}
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <>
+
+                    {/* Zalo Button */}
+                    {settings.zaloPhone && (
+                        <a
+                            href={`https://zalo.me/${settings.zaloPhone}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="fixed bottom-24 right-6 z-40 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg flex items-center gap-2 animate-bounce transition-transform hover:scale-110"
+                            title="Chat Zalo"
+                        >
+                            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 5.92 2 10.5c0 2.37 1.17 4.54 3.12 6.13-.15.86-.54 1.95-1.42 2.62-.23.18-.08.57.21.57 2.39 0 4.19-1.29 4.88-1.93.7.13 1.43.21 2.21.21 5.52 0 10-3.92 10-8.5S17.52 2 12 2zm0 15c-.71 0-1.39-.07-2.04-.2-.27-.05-.54.04-.73.23-.74.72-2.12 1.58-3.73 1.66.44-.8 1.05-2.22 1.05-2.22.06-.16.03-.35-.09-.48C4.94 14.54 4 12.63 4 10.5 4 7.02 7.7 4 12 4s8 3.02 8 6.5-3.7 6.5-8 6.5z" /></svg>
+                            <span className="font-bold text-xs">{settings.zaloPhone}</span>
+                        </a>
+                    )}
+
+                    {/* Hero Section */}
+                    <div className="relative py-24 px-6 md:px-12 text-center overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-[#0f172a] to-slate-900 z-0"></div>
+                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 z-0"></div>
+                        <div className="relative z-10 space-y-6 max-w-4xl mx-auto">
+                            <span className="inline-block py-1 px-3 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-bold uppercase tracking-widest animate-in fade-in slide-in-from-bottom-4">
+                                Hệ thống điều hành AI tập trung
+                            </span>
+                            <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-indigo-400 leading-tight drop-shadow-2xl animate-in zoom-in-95 duration-700">
+                                {settings.welcomeTitle ? processText(settings.welcomeTitle) : 'QUANG HUY AI STUDIO'}
+                            </h1>
+                            <p className="text-lg md:text-xl text-slate-400 font-light max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-6 delay-200">
+                                {settings.welcomeMessage || 'Nền tảng tích hợp đa công cụ mạnh mẽ, giúp bạn tối ưu hóa quy trình sáng tạo Video và Hình ảnh Viral chỉ với một cú click.'}
+                            </p>
+
+                            <div className="flex flex-wrap items-center justify-center gap-4 pt-8 animate-in fade-in slide-in-from-bottom-8 delay-300">
+                                <button
+                                    onClick={() => onNavigate('video-viral')}
+                                    className="group relative px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/20 transition-all hover:-translate-y-1 active:scale-95 overflow-hidden"
+                                >
+                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 transform skew-y-12"></div>
+                                    VIDEO VIRAL ENGINE
+                                </button>
+                                <button
+                                    onClick={() => onNavigate('image-script')}
+                                    className="px-8 py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-2xl shadow-xl transition-all hover:-translate-y-1 active:scale-95"
+                                >
+                                    VISUAL SCRIPT ENGINE
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* News Section */}
+                    <div className="max-w-5xl mx-auto w-full px-6 py-16 space-y-12">
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-2xl font-bold text-gray-800 border-l-4 border-indigo-600 pl-4 uppercase tracking-wider">Tin Tức Mới Nhất</h2>
+                            <div className="h-px bg-gray-200 flex-grow"></div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {settings.news.map(news => (
+                                <div key={news.id} className="group bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-2xl hover:border-indigo-100 transition-all">
+                                    <div className="flex items-center justify-between text-xs text-gray-400 mb-4 font-bold uppercase tracking-wider">
+                                        <span>{formatDate(news.date)}</span>
+                                        <span className="text-indigo-500">{news.author}</span>
+                                    </div>
+
+                                    {news.imageUrl && (
+                                        <div className="mb-3 rounded-lg overflow-hidden h-40 w-full relative">
+                                            <img
+                                                src={news.imageUrl}
+                                                alt={news.title}
+                                                className="absolute inset-0 w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500 cursor-zoom-in"
+                                                onClick={() => setSelectedImage(news.imageUrl!)}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-indigo-600 transition-colors line-clamp-2">{news.title}</h3>
+                                    <div
+                                        className="prose prose-sm text-gray-500 line-clamp-4 [&_img]:cursor-zoom-in"
+                                        dangerouslySetInnerHTML={{ __html: news.content }}
+                                        onClick={(e) => {
+                                            const target = e.target as HTMLElement;
+                                            if (target.tagName === 'IMG') {
+                                                e.stopPropagation();
+                                                setSelectedImage((target as HTMLImageElement).src);
+                                            }
+                                        }}
+                                    />
+                                    <button className="mt-6 text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-2 group/btn">
+                                        Xem chi tiết
+                                        <svg className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                                    </button>
+                                </div>
+                            ))}
+                            {settings.news.length === 0 && <p className="text-gray-400 italic">Chưa có tin tức nào.</p>}
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 
@@ -393,42 +440,83 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
 
             <div className="max-w-6xl mx-auto px-6 py-12">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                    {/* Left: Main Intro */}
+                    {/* Left: Main Content OR Widget Content */}
                     <div className="lg:col-span-2 space-y-8">
-                        <div className="bg-white rounded-3xl p-10 shadow-xl border border-gray-100 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-8 w-64 opacity-10">
-                                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z" /></svg>
+                        {viewingWidget ? (
+                            <div className="bg-white rounded-3xl p-10 shadow-xl border border-gray-100 animate-in fade-in slide-in-from-bottom-4">
+                                <button
+                                    onClick={() => setViewingWidget(null)}
+                                    className="mb-6 text-sm text-slate-500 font-bold uppercase tracking-wider hover:text-indigo-600 flex items-center gap-2"
+                                >
+                                    ← Quay lại
+                                </button>
+                                <h1 className="text-3xl font-black text-gray-900 mb-6">{viewingWidget.title}</h1>
+                                <div className="prose max-w-none text-gray-600 [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-800" dangerouslySetInnerHTML={{ __html: viewingWidget.content || '' }} />
                             </div>
-                            <h1 className="text-4xl font-black text-gray-900 mb-6">
-                                {processText(settings.welcomeTitle) || `Chào mừng, ${user.username}!`}
-                            </h1>
-                            <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-                                {settings.welcomeMessage || 'Hệ thống AI Studio cung cấp các công cụ tối tân nhất để tự động hóa quy trình sáng tạo nội dung của bạn.'}
-                            </p>
-                            <div className="flex flex-wrap gap-4">
-                                {/* Buttons removed as per request */}
-                            </div>
-                        </div>
+                        ) : (
+                            // Default Welcome + News
+                            <>
+                                <div className="bg-white rounded-3xl p-10 shadow-xl border border-gray-100 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-8 w-64 opacity-10">
+                                        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z" /></svg>
+                                    </div>
+                                    <h1 className="text-4xl font-black text-gray-900 mb-6">
+                                        {processText(settings.welcomeTitle) || `Chào mừng, ${user.username}!`}
+                                    </h1>
+                                    <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+                                        {settings.welcomeMessage || 'Hệ thống AI Studio cung cấp các công cụ tối tân nhất để tự động hóa quy trình sáng tạo nội dung của bạn.'}
+                                    </p>
+                                    <div className="flex flex-wrap gap-4">
+                                        {/* Buttons removed as per request */}
+                                    </div>
+                                </div>
 
-                        {/* News List */}
-                        <div className="space-y-6">
-                            <h2 className="text-2xl font-bold text-gray-800">Cập nhật hệ thống</h2>
-                            {settings.news.map(news => (
-                                <ExpandableNewsItem
-                                    key={news.id}
-                                    news={news}
-                                    formatDate={formatDate}
-                                    onImageClick={setSelectedImage}
-                                />
-                            ))}
-                        </div>
+                                {/* News List */}
+                                <div className="space-y-6">
+                                    <h2 className="text-2xl font-bold text-gray-800">Cập nhật hệ thống</h2>
+                                    {settings.news.map(news => (
+                                        <ExpandableNewsItem
+                                            key={news.id}
+                                            news={news}
+                                            formatDate={formatDate}
+                                            onImageClick={setSelectedImage}
+                                        />
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Right: Dynamic Widgets */}
                     <div className="space-y-6">
                         {settings.sidebarWidgets?.map(widget => (
-                            <div key={widget.id} className={`${widget.type === 'status' ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white' : 'bg-white text-gray-800 border-gray-100'} rounded-3xl p-8 shadow-xl border`}>
-                                <h3 className={`text-lg font-bold uppercase tracking-widest mb-4 opacity-80`}>{widget.title}</h3>
+                            <div
+                                key={widget.id}
+                                className={`${widget.type === 'status' ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white' : 'bg-white text-gray-800 border-gray-100'} rounded-3xl p-8 shadow-xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-2xl active:scale-95`}
+                                onClick={(e) => {
+                                    if (widget.type !== 'custom') return;
+
+                                    // Handle Link Clicks - OPEN IN NEW TAB
+                                    const target = e.target as HTMLElement;
+                                    const link = target.closest('a');
+                                    if (link) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        window.open(link.href, '_blank');
+                                        return;
+                                    }
+
+                                    setViewingWidget(widget);
+                                }}
+                            >
+                                <div className="flex justify-between items-center mb-4 opacity-80">
+                                    <h3 className={`text-lg font-bold uppercase tracking-widest`}>{widget.title}</h3>
+                                    {widget.type === 'custom' && (
+                                        <span className="text-xs bg-black/10 px-2 py-1 rounded">Mở xem</span>
+                                    )}
+                                </div>
+
+
                                 {widget.type === 'status' && (
                                     <>
                                         <div className="text-4xl font-black mb-4">{settings.statusTitle || 'Stable'}</div>
@@ -443,7 +531,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                     </ul>
                                 )}
                                 {widget.type === 'custom' && widget.content && (
-                                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: widget.content }} />
+                                    <div className="prose prose-sm max-w-none line-clamp-3 [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-800 relative z-10" dangerouslySetInnerHTML={{ __html: widget.content }} />
                                 )}
                             </div>
                         ))}
@@ -452,6 +540,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
             </div>
         </div>
     );
+
+
 
     return (
         <div className="relative h-full w-full bg-slate-50">
@@ -571,13 +661,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                                         className="w-full bg-slate-900 border border-slate-700 text-white p-1 rounded text-xs mb-2"
                                                         placeholder="Tiêu đề widget..."
                                                     />
+
                                                     {widget.type === 'custom' && (
-                                                        <textarea
-                                                            value={widget.content || ''}
-                                                            onChange={e => updateWidgetContent(widget.id, 'content', e.target.value)}
-                                                            className="w-full bg-slate-900 border border-slate-700 text-white p-1 rounded text-xs h-16"
-                                                            placeholder="Nội dung HTML..."
-                                                        />
+                                                        <button
+                                                            onClick={() => handleEditWidget(widget)}
+                                                            className="w-full mt-2 bg-indigo-600/50 hover:bg-indigo-600 text-white text-xs py-2 rounded border border-indigo-500/50"
+                                                        >
+                                                            Chỉnh sửa nội dung (Full Editor)
+                                                        </button>
                                                     )}
                                                 </div>
                                             ))}
@@ -619,106 +710,152 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                 </div>
                             </div>
 
-                            {/* Right: News Manager */}
-                            <div className="w-2/3 p-6 flex flex-col bg-[#0f172a]">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="font-bold text-white">Quản lý Tin Tức</h3>
-                                    <button
-                                        onClick={() => { setIsEditing(true); setEditingNews({}); }}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg"
-                                    >
-                                        + Thêm Tin Mới
-                                    </button>
+                            {/* Right: News Manager OR Widget Editor */}
+                            {adminMode === 'news' ? (
+                                <div className="w-2/3 p-6 flex flex-col bg-[#0f172a]">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="font-bold text-white">Quản lý Tin Tức</h3>
+                                        <button
+                                            onClick={() => { setIsEditing(true); setEditingNews({}); }}
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg"
+                                        >
+                                            + Thêm Tin Mới
+                                        </button>
+                                    </div>
+
+                                    {isEditing ? (
+                                        <div className="flex-grow flex flex-col min-h-0">
+                                            <div className="flex-grow overflow-y-auto pr-2 space-y-4">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Tiêu đề bài viết..."
+                                                    value={editingNews.title || ''}
+                                                    onChange={e => setEditingNews({ ...editingNews, title: e.target.value })}
+                                                    className="bg-slate-800 border-slate-700 text-white p-3 rounded-lg outline-none focus:border-indigo-500 w-full"
+                                                />
+
+                                                <div className="flex flex-col min-h-[300px]">
+                                                    <RichTextEditor
+                                                        ref={textEditorRef}
+                                                        value={editingNews.content || ''}
+                                                        onChange={html => setEditingNews({ ...editingNews, content: html })}
+                                                        className="flex-grow h-full"
+                                                    />
+                                                </div>
+
+                                                {/* Emoji Toolbar (Content) */}
+                                                <div className="flex gap-2 flex-wrap pt-2 pb-2">
+                                                    {['📢', '🔴', '🔔', '📣', '⚠️', '📌', '📍', '📞', '📩', '🎁', '🎉', '🆕', '🆙', 'Ok', '✅'].map(emoji => (
+                                                        <button
+                                                            type="button"
+                                                            key={emoji}
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                textEditorRef.current?.insertText(emoji);
+                                                            }}
+                                                            className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-sm transition-colors"
+                                                            title="Chèn vào nội dung"
+                                                        >
+                                                            {emoji}
+                                                        </button>
+                                                    ))}
+                                                    <span className="text-[10px] text-slate-500 self-center ml-2 uppercase font-bold tracking-wider opacity-60">Click để chèn vào nội dung</span>
+                                                </div>
+
+                                                <div className="pt-2">
+                                                    <ImageUpload
+                                                        currentImage={editingNews.imageUrl}
+                                                        onImageUploaded={(url) => setEditingNews({ ...editingNews, imageUrl: url })}
+                                                        onClear={() => setEditingNews({ ...editingNews, imageUrl: undefined })}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-700 mt-2 flex-shrink-0 bg-[#0f172a]">
+                                                <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-400 hover:text-white">Hủy</button>
+                                                <button onClick={handleSaveNews} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold">Lưu Tin</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex-grow overflow-y-auto space-y-3 pr-2">
+                                            {settings.news.map((news, idx) => (
+                                                <div key={news.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-start group">
+                                                    <div>
+                                                        <h4 className="font-bold text-white text-sm">{news.title}</h4>
+                                                        <div className="text-[10px] text-slate-400 mt-1">
+                                                            {formatDate(news.date)} - {news.author}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <div className="flex flex-col gap-1 mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => moveNews(idx, 'up')} disabled={idx === 0} className="text-slate-500 hover:text-white disabled:opacity-20">▲</button>
+                                                            <button onClick={() => moveNews(idx, 'down')} disabled={idx === settings.news.length - 1} className="text-slate-500 hover:text-white disabled:opacity-20">▼</button>
+                                                        </div>
+                                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity items-center">
+                                                            <button
+                                                                onClick={() => { setEditingNews(news); setIsEditing(true); }}
+                                                                className="p-1 text-blue-400 hover:bg-blue-400/10 rounded"
+                                                            >
+                                                                Sửa
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteNews(news.id)}
+                                                                className="p-1 text-red-400 hover:bg-red-400/10 rounded"
+                                                            >
+                                                                Xóa
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
+                            ) : (
+                                /* WIDGET EDITOR */
+                                <div className="w-2/3 p-6 flex flex-col bg-[#0f172a]">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="font-bold text-white uppercase">
+                                            Chỉnh sửa Widget: <span className="text-indigo-400">{pendingSettings?.sidebarWidgets?.find(w => w.id === editingWidgetId)?.title}</span>
+                                        </h3>
+                                        <button onClick={handleSaveWidget} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg">
+                                            Xong
+                                        </button>
+                                    </div>
 
-                                {isEditing ? (
-                                    <div className="flex-grow flex flex-col min-h-0">
-                                        <div className="flex-grow overflow-y-auto pr-2 space-y-4">
-                                            <input
-                                                type="text"
-                                                placeholder="Tiêu đề bài viết..."
-                                                value={editingNews.title || ''}
-                                                onChange={e => setEditingNews({ ...editingNews, title: e.target.value })}
-                                                className="bg-slate-800 border-slate-700 text-white p-3 rounded-lg outline-none focus:border-indigo-500 w-full"
+                                    <div className="flex-grow flex flex-col min-h-0 pb-4">
+                                        <label className="text-xs text-slate-400 font-bold uppercase mb-2">Nội dung (HTML Supported)</label>
+                                        <div className="flex-grow bg-white rounded-lg overflow-hidden flex flex-col">
+                                            <RichTextEditor
+                                                ref={textEditorRef}
+                                                // Find the content from pendingSettings array
+                                                value={pendingSettings?.sidebarWidgets?.find(w => w.id === editingWidgetId)?.content || ''}
+                                                onChange={html => {
+                                                    if (editingWidgetId) updateWidgetContent(editingWidgetId, 'content', html)
+                                                }}
+                                                className="flex-grow h-full text-black"
                                             />
-
-                                            <div className="flex flex-col min-h-[300px]">
-                                                <RichTextEditor
-                                                    ref={textEditorRef}
-                                                    value={editingNews.content || ''}
-                                                    onChange={html => setEditingNews({ ...editingNews, content: html })}
-                                                    className="flex-grow h-full"
-                                                />
-                                            </div>
-
-                                            {/* Emoji Toolbar (Content) */}
-                                            <div className="flex gap-2 flex-wrap pt-2 pb-2">
-                                                {['📢', '🔴', '🔔', '📣', '⚠️', '📌', '📍', '📞', '📩', '🎁', '🎉', '🆕', '🆙', 'Ok', '✅'].map(emoji => (
-                                                    <button
-                                                        type="button"
-                                                        key={emoji}
-                                                        onMouseDown={(e) => {
-                                                            e.preventDefault();
-                                                            textEditorRef.current?.insertText(emoji);
-                                                        }}
-                                                        className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-sm transition-colors"
-                                                        title="Chèn vào nội dung"
-                                                    >
-                                                        {emoji}
-                                                    </button>
-                                                ))}
-                                                <span className="text-[10px] text-slate-500 self-center ml-2 uppercase font-bold tracking-wider opacity-60">Click để chèn vào nội dung</span>
-                                            </div>
-
-                                            <div className="pt-2">
-                                                <ImageUpload
-                                                    currentImage={editingNews.imageUrl}
-                                                    onImageUploaded={(url) => setEditingNews({ ...editingNews, imageUrl: url })}
-                                                    onClear={() => setEditingNews({ ...editingNews, imageUrl: undefined })}
-                                                />
-                                            </div>
                                         </div>
-
-                                        <div className="flex justify-end gap-3 pt-4 border-t border-slate-700 mt-2 flex-shrink-0 bg-[#0f172a]">
-                                            <button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-400 hover:text-white">Hủy</button>
-                                            <button onClick={handleSaveNews} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold">Lưu Tin</button>
+                                        {/* Emoji Toolbar for Widget */}
+                                        <div className="flex gap-2 flex-wrap pt-4">
+                                            {['📢', '🔴', '🔔', '📣', '⚠️', '📌', '📍', '📞', '📩', '🎁', '🎉', '🆕', '🆙', 'Ok', '✅'].map(emoji => (
+                                                <button
+                                                    type="button"
+                                                    key={emoji}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        textEditorRef.current?.insertText(emoji);
+                                                    }}
+                                                    className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-sm transition-colors"
+                                                    title="Chèn vào nội dung"
+                                                >
+                                                    {emoji}
+                                                </button>
+                                            ))}
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="flex-grow overflow-y-auto space-y-3 pr-2">
-                                        {settings.news.map((news, idx) => (
-                                            <div key={news.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-start group">
-                                                <div>
-                                                    <h4 className="font-bold text-white text-sm">{news.title}</h4>
-                                                    <div className="text-[10px] text-slate-400 mt-1">
-                                                        {formatDate(news.date)} - {news.author}
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <div className="flex flex-col gap-1 mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => moveNews(idx, 'up')} disabled={idx === 0} className="text-slate-500 hover:text-white disabled:opacity-20">▲</button>
-                                                        <button onClick={() => moveNews(idx, 'down')} disabled={idx === settings.news.length - 1} className="text-slate-500 hover:text-white disabled:opacity-20">▼</button>
-                                                    </div>
-                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity items-center">
-                                                        <button
-                                                            onClick={() => { setEditingNews(news); setIsEditing(true); }}
-                                                            className="p-1 text-blue-400 hover:bg-blue-400/10 rounded"
-                                                        >
-                                                            Sửa
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteNews(news.id)}
-                                                            className="p-1 text-red-400 hover:bg-red-400/10 rounded"
-                                                        >
-                                                            Xóa
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
