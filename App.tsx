@@ -111,6 +111,30 @@ const App: React.FC = () => {
       return;
     }
 
+    // CHECK API KEYS (New Requirement)
+    if (currentUser) {
+      const keyStorage = localStorage.getItem(`app_api_keys_${currentUser.id}`);
+      let hasGeminiKeys = false;
+      if (keyStorage) {
+        try {
+          const parsed = JSON.parse(keyStorage);
+          // Simple decode similar to ApiKeyManager
+          const decode = (str: string) => { try { return atob(str); } catch (e) { return str; } };
+          const geminiStr = decode(parsed.gemini || '');
+          if (geminiStr && geminiStr.trim().length > 0) {
+            hasGeminiKeys = true;
+          }
+        } catch (e) {
+          console.error("Error checking keys", e);
+        }
+      }
+
+      if (!hasGeminiKeys) {
+        alert("Hãy nhập nhiều API key Gemini vào để sử dụng");
+        return;
+      }
+    }
+
     const { allowed, reason } = checkAccess(currentUser, tab);
 
     if (allowed) {

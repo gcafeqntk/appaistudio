@@ -90,6 +90,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 setError('Quá nhiều lần thử đăng nhập sai. Vui lòng thử lại sau ít phút.');
             } else if (err.code === 'auth/network-request-failed') {
                 setError('Lỗi kết nối mạng. Vui lòng kiểm tra đường truyền.');
+            } else if (err.code === 'auth/unauthorized-domain') {
+                setError('Tên miền trang web chưa được cấp phép trong Firebase Auth (Authorized Domains).');
             } else {
                 // Generic Error Translation
                 let msg = err.message || "Lỗi không xác định";
