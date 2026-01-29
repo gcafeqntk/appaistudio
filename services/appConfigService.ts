@@ -27,5 +27,34 @@ export const appConfigService = {
             console.error("Error saving app config:", error);
             throw error;
         }
+    },
+
+    // --- LANDING PAGE SETTINGS ---
+
+    // Get Landing Page Settings
+    async getLandingPageSettings(): Promise<any | null> {
+        try {
+            const docRef = doc(db, "system_config", "landing_page");
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                return docSnap.data().settings;
+            }
+            return null;
+        } catch (error) {
+            console.warn("Landing Page Config Fetch Error:", error);
+            return null;
+        }
+    },
+
+    // Save Landing Page Settings
+    async saveLandingPageSettings(settings: any): Promise<void> {
+        try {
+            const docRef = doc(db, "system_config", "landing_page");
+            await setDoc(docRef, { settings: settings }, { merge: true });
+        } catch (error) {
+            console.error("Error saving landing page config:", error);
+            throw error;
+        }
     }
 };

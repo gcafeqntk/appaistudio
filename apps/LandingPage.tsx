@@ -4,6 +4,7 @@ import { User } from '../types';
 import RichTextEditor, { RichTextEditorHandle } from '../components/RichTextEditor';
 import ImageUpload from '../components/ImageUpload';
 import { useRef } from 'react';
+import { appConfigService } from '../services/appConfigService'; // Import Service
 
 interface LandingPageProps {
     user: User;
@@ -107,6 +108,7 @@ const ExpandableNewsItem = ({ news, formatDate, onImageClick }: { news: NewsItem
 };
 
 const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
+
     const [settings, setSettings] = useState<AppSettings>({
         layout: 'modern',
         news: [],
@@ -123,7 +125,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
     const textEditorRef = useRef<RichTextEditorHandle>(null);
 
     // Pending Settings for Sidebar
-    // Pending Settings for Sidebar
     const [pendingSettings, setPendingSettings] = useState<AppSettings | null>(null);
 
     // Lightbox State
@@ -138,34 +139,56 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
 
 
     useEffect(() => {
-        const saved = localStorage.getItem('app_settings');
-        if (saved) {
-            setSettings(JSON.parse(saved));
-        } else {
-            // Default seeding
-            const defaultNews = [
-                {
-                    id: '1',
-                    title: 'Chào mừng đến với Quang Huy Studio',
-                    content: '<p>Hệ thống <b>Multi-App Engine</b> đã chính thức vận hành. Hãy chọn ứng dụng để bắt đầu!</p>',
-                    date: Date.now(),
-                    author: 'System'
+        const fetchSettings = async () => {
+            try {
+                let saved = await appConfigService.getLandingPageSettings();
+
+                // MIGRATION: If no cloud config, check for local config (restore Admin's view)
+                if (!saved) {
+                    const localSaved = localStorage.getItem('app_settings');
+                    if (localSaved) {
+                        console.log("Migrating local settings to cloud...");
+                        const localSettings = JSON.parse(localSaved);
+                        saved = localSettings;
+                        // Auto-push to cloud so Guests can see it immediately
+                        await appConfigService.saveLandingPageSettings(localSettings);
+                    }
                 }
-            ];
-            setSettings({
-                layout: 'modern',
-                news: defaultNews,
-                welcomeTitle: 'Chào mừng, {username}!',
-                welcomeMessage: 'Hệ thống AI Studio cung cấp các công cụ tối tân nhất để tự động hóa quy trình sáng tạo nội dung của bạn.',
-                statusTitle: 'Stable',
-                statusMessage: 'Tất cả dịch vụ API đang hoạt động bình thường.',
-                zaloPhone: '0987654321', // Example
-                sidebarWidgets: [
-                    { id: 'w1', type: 'status', title: 'Trạng thái', order: 0 },
-                    { id: 'w2', type: 'shortcuts', title: 'Lối tắt', order: 1 }
-                ]
-            });
-        }
+
+                if (saved) {
+                    setSettings(saved);
+                    // Update local storage as cache/backup
+                    localStorage.setItem('app_settings', JSON.stringify(saved));
+                } else {
+                    // Default seeding (Only if both Cloud and Local are empty)
+                    const defaultNews = [
+                        {
+                            id: '1',
+                            title: 'Chào mừng đến với Quang Huy Studio',
+                            content: '<p>Hệ thống <b>Multi-App Engine</b> đã chính thức vận hành. Hãy chọn ứng dụng để bắt đầu!</p>',
+                            date: Date.now(),
+                            author: 'System'
+                        }
+                    ];
+                    setSettings({
+                        layout: 'modern',
+                        news: defaultNews,
+                        welcomeTitle: 'Chào mừng, {username}!',
+                        welcomeMessage: 'Hệ thống AI Studio cung cấp các công cụ tối tân nhất để tự động hóa quy trình sáng tạo nội dung của bạn.',
+                        statusTitle: 'Stable',
+                        statusMessage: 'Tất cả dịch vụ API đang hoạt động bình thường.',
+                        zaloPhone: '0987654321',
+                        sidebarWidgets: [
+                            { id: 'w1', type: 'status', title: 'Trạng thái', order: 0 },
+                            { id: 'w2', type: 'shortcuts', title: 'Lối tắt', order: 1 }
+                        ]
+                    });
+                }
+            } catch (err) {
+                console.error("Error fetching settings:", err);
+            }
+        };
+        fetchSettings();
     }, []);
 
     // Sync pending settings when admin panel opens
@@ -175,9 +198,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
         }
     }, [showAdminPanel, settings]);
 
-    const saveSettings = (newSettings: AppSettings) => {
+    const saveSettings = async (newSettings: AppSettings) => {
         setSettings(newSettings);
-        localStorage.setItem('app_settings', JSON.stringify(newSettings));
+        localStorage.setItem('app_settings', JSON.stringify(newSettings)); // Keep local sync
+        await appConfigService.saveLandingPageSettings(newSettings);
     };
 
     const handleSavePendingSettings = () => {
