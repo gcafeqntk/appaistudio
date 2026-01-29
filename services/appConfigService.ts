@@ -1,35 +1,28 @@
-import { supabase } from "./supabase";
-// import { AppConfig } from "../types"; // Types might need adjustment if using DB
+import { db } from "./firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export const appConfigService = {
-    // Fetch app names from Supabase (assuming 'app_config' table exists, or return defaults)
+    // Fetch app names from Firestore 'system_config/app_names'
     async getAppNames(): Promise<Record<string, string>> {
         try {
-            // For now, to break Firebase dependency, we return defaults or empty.
-            // If you want to store config in Supabase, create a table 'app_config' (id, key, value)
-            const { data, error } = await supabase
-                .from('app_config')
-                .select('*')
-                .eq('id', 'global_names')
-                .single();
+            const docRef = doc(db, "system_config", "app_names");
+            const docSnap = await getDoc(docRef);
 
-            if (data && data.names) {
-                return data.names;
+            if (docSnap.exists()) {
+                return docSnap.data().names || {};
             }
             return {};
         } catch (error) {
-            console.warn("App Config Fetch Error (Ignorable if table missing):", error);
+            console.warn("App Config Fetch Error:", error);
             return {};
         }
     },
 
-    // Save all app names
+    // Save all app names to Firestore
     async saveAppConfig(newNames: Record<string, string>): Promise<void> {
         try {
-            // Upsert
-            await supabase
-                .from('app_config')
-                .upsert({ id: 'global_names', names: newNames });
+            const docRef = doc(db, "system_config", "app_names");
+            await setDoc(docRef, { names: newNames }, { merge: true });
         } catch (error) {
             console.error("Error saving app config:", error);
             throw error;

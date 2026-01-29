@@ -7,22 +7,37 @@ import ImageScriptApp from './apps/ImageScriptApp';
 import ZenShotApp from './apps/ZenShotApp';
 import LandingPage from './apps/LandingPage';
 import TranslationApp from './apps/TranslationApp';
-
 import NewToolApp from './apps/NewToolApp';
-
-
-
 import UserProfile from './components/UserProfile';
 import { User } from './types';
-
-import { supabase } from './services/supabase';
-// import { authSupabase } from './services/authSupabase'; // DEPRECATED
 import { auth, db } from './services/firebase'; // NEW Firebase Import
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { authFirebase } from './services/authFirebase'; // For fallback profile fetch if needed
-
 import { appConfigService } from './services/appConfigService';
+
+// Define access control helper
+const checkAccess = (user: User | null, appKey: string): { allowed: boolean; reason?: 'guest' | 'disabled' } => {
+  if (!user) return { allowed: false, reason: 'guest' };
+  // Admin bypass
+  if (user.role === 'admin') return { allowed: true };
+
+  // Default allow if allowedApps is undefined (legacy support), OR check inclusion
+  // BUT user requirement says: "Allowed UNLESS Admin disable". 
+  // However, the previous logic was `currentUser.allowedApps?.includes`.
+  // Let's assume allowedApps is "Apps allowed explicitly" or "Apps NOT disabled"?
+  // Re-reading user request: "admin disable app đó".
+  // Let's stick to the existing data structure: `allowedApps` contains ENABLED apps. 
+  // If `allowedApps` is missing, we might assume strict default or open default.
+  // Given previous DB logic `allowedApps` usually lists ENABLED apps.
+  // We will assume if `allowedApps` is present, it's an allow-list. 
+  // If we want "block list", we'd need a different field. 
+  // User said: "trừ trường hợp Admin disable app". 
+  // So likely the logic should be: Is it in the Allowed List?
+
+  if (user.allowedApps && user.allowedApps.includes(appKey)) return { allowed: true };
+
+  return { allowed: false, reason: 'disabled' };
+};
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -30,6 +45,7 @@ const App: React.FC = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [appNames, setAppNames] = useState<Record<string, string>>({});
+  const [showAuthModal, setShowAuthModal] = useState(false); // For Guest trying to access apps
 
   const fetchAppNames = async () => {
     const names = await appConfigService.getAppNames();
@@ -58,9 +74,11 @@ const App: React.FC = () => {
               username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
               email: firebaseUser.email || '',
               role: 'user',
+              allowedApps: ['video-viral', 'image-script', 'zenshot-ai', 'translation'], // Default allowed apps for new users
               createdAt: Date.now()
             });
           }
+          setShowAuthModal(false); // Close auth modal on successful login
         } else {
           // User is signed out
           setCurrentUser(null);
@@ -76,56 +94,40 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Old timeout removed in favor of Emergency Strategy
-
   const handleLogin = (user: User) => {
     setCurrentUser(user);
-    // No need to set localStorage, Firebase handles session
+    setShowAuthModal(false);
+  };
+
+  const handleLogout = async () => {
+    // setInitializing(true); // Don't full spinner on logout, just reset state
+    await authFirebase.logoutUser();
+    setActiveTab('home'); // Redirect to home on logout
+  };
+
+  const handleNavigate = (tab: typeof activeTab) => {
+    if (tab === 'home') {
+      setActiveTab('home');
+      return;
+    }
+
+    const { allowed, reason } = checkAccess(currentUser, tab);
+
+    if (allowed) {
+      setActiveTab(tab);
+    } else {
+      if (reason === 'guest') {
+        alert("App này chỉ dành cho thành viên, hãy đăng ký.");
+        setShowAuthModal(true);
+      } else if (reason === 'disabled') {
+        alert("Bạn chưa được cấp quyền truy cập ứng dụng này. Vui lòng liên hệ Admin.");
+      }
+    }
   };
 
   const handleUpdateUser = (updatedUser: User) => {
     setCurrentUser(updatedUser);
-    // In real app, we should also update Firestore here if needed, 
-    // but UserProfile component likely calls an update service. 
-    // For now we just update local state to reflect changes immediately.
   };
-
-  const handleLogout = async () => {
-    setInitializing(true);
-    await authFirebase.logoutUser();
-    // onAuthStateChanged will handle the rest
-  };
-
-  // State for Emergency Recovery
-  const [showEmergency, setShowEmergency] = useState(false);
-
-  // Safety Timeout: Force show Emergency UI after 8 seconds if Supabase hangs
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (initializing) {
-        console.warn("⚠️ Initialization timed out - Showing Emergency UI");
-        setShowEmergency(true);
-        setInitializing(false);
-      }
-    }, 8000); // 8 seconds absolute limit
-    return () => clearTimeout(timer);
-  }, [initializing]);
-
-  const handleCreateNewProfile = async () => {
-    if (!currentUser) return;
-    try {
-      const { error } = await supabase.from('users').insert({
-        id: currentUser.id,
-        username: currentUser.username,
-        email: currentUser.email,
-        created_at: new Date().toISOString()
-      });
-      if (error) alert("Error creating profile: " + error.message);
-      else window.location.reload();
-    } catch (e: any) {
-      alert("System Error: " + e.message);
-    }
-  }
 
   if (initializing) {
     return (
@@ -136,67 +138,42 @@ const App: React.FC = () => {
     );
   }
 
-  // Emergency Fallback Screen
-  if (showEmergency) {
+  // --- RENDER ---
+
+  // Auth Modal for Guests
+  if (showAuthModal && !currentUser) {
+    // We wrap Auth component in a primitive modal or just render it fullscreen but with a "Cancel" option?
+    // Given existing Auth component structure, probably simpler to check if we can add a 'back' button or overlay.
+    // For now, let's render Auth as a fullscreen overlay that sits on top of Landing Page (or replaces it temporarily).
+    // Or better: Just render Auth, but pass a prop to show 'Close' button?
+    // The existing Auth component (viewed previously) seems to be a full page. 
+    // Let's modify logic: If showAuthModal, render Auth. If user cancels, go back.
+    // But Auth doesn't have 'Cancel'. Just 'Switch Mode'. 
+    // We will assume Auth is the only view. We can add a "Back to Home" button inside Auth if we modified it, 
+    // or just render a wrapper here.
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-[#1e293b] rounded-2xl p-8 border border-red-500/30 shadow-2xl">
-          <h2 className="text-2xl font-bold text-red-500 mb-4">⚠️ Connection Timeout</h2>
-          <p className="text-slate-300 mb-6">
-            The application is taking too long to load. This might be due to a poor network connection or a paused Supabase project.
-          </p>
-          <div className="space-y-4">
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition-all"
-            >
-              Reload Application
-            </button>
-
-            <button
-              onClick={() => {
-                if (window.confirm("Clear all local data and logout?")) {
-                  localStorage.clear();
-                  sessionStorage.clear();
-                  window.location.reload();
-                }
-              }}
-              className="w-full py-3 bg-[#0f172a] border border-slate-600 hover:border-red-500 text-slate-400 hover:text-red-400 rounded-lg font-bold transition-all"
-            >
-              Factory Reset (Clear Cache)
-            </button>
-
-            <button
-              onClick={() => {
-                authFirebase.logoutUser().then(() => window.location.reload());
-              }}
-              className="w-full py-3 bg-[#0f172a] border border-slate-600 hover:border-white text-white rounded-lg font-bold transition-all"
-            >
-              Force Logout
-            </button>
-          </div>
-          <div className="mt-8 text-center">
-            <span className="text-[10px] text-slate-600 font-mono">DEBUG: v2.1-EMERGENCY | {new Date().toLocaleTimeString()}</span>
-          </div>
-        </div>
+      <div className="relative z-50">
+        <button
+          onClick={() => setShowAuthModal(false)}
+          className="fixed top-4 right-4 z-[60] text-white bg-slate-800/50 hover:bg-slate-700 p-2 rounded-full"
+        >
+          ✕ Close
+        </button>
+        <Auth onLogin={handleLogin} />
       </div>
     );
   }
 
-  if (!currentUser) {
-    return <Auth onLogin={handleLogin} />;
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center">
-      {/* 1. API Key Manager (Global) */}
-      <ApiKeyManager userId={currentUser.id} />
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center relative">
+      {/* 1. API Key Manager (Only for Members) */}
+      {currentUser && <ApiKeyManager userId={currentUser.id} />}
 
       {/* 2. Navigation Bar (Shell Header) */}
       <nav className="w-full bg-[#020617] text-white border-b border-white/5 sticky top-0 z-[100] px-6 md:px-12 py-4 backdrop-blur-2xl bg-opacity-95 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4">
 
         {/* Logo & Branding */}
-        <div className="flex items-center gap-6 cursor-pointer" onClick={() => setActiveTab('home')}>
+        <div className="flex items-center gap-6 cursor-pointer" onClick={() => handleNavigate('home')}>
           <div className="bg-gradient-to-tr from-indigo-500 via-indigo-600 to-violet-600 p-3 rounded-2xl shadow-2xl shadow-indigo-500/30 ring-4 ring-indigo-500/10">
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
           </div>
@@ -209,96 +186,70 @@ const App: React.FC = () => {
         </div>
 
         {/* TAB MENU (CENTER) */}
-        <div className="flex items-center bg-white/5 rounded-2xl p-1 border border-white/10">
-          {(currentUser.role === 'admin' || currentUser.allowedApps?.includes('video-viral')) && (
+        <div className="flex items-center bg-white/5 rounded-2xl p-1 border border-white/10 overflow-x-auto max-w-full">
+          {/* We render ALL tabs, but handle click with checkAccess */}
+          {[
+            { id: 'video-viral', defaultName: 'Video Viral Engine' },
+            { id: 'image-script', defaultName: 'Visual Script Engine' },
+            { id: 'zenshot-ai', defaultName: 'ZenShot AI (New)' },
+            { id: 'translation', defaultName: 'Translation AI' },
+            { id: 'new-tool', defaultName: 'New Application' }
+          ].map(app => (
             <button
-              onClick={() => setActiveTab('video-viral')}
-              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'video-viral'
+              key={app.id}
+              onClick={() => handleNavigate(app.id as any)}
+              className={`px-4 md:px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === app.id
                 ? 'bg-indigo-600 text-white shadow-lg'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
             >
-              {appNames['video-viral'] || 'Video Viral Engine'}
+              {appNames[app.id] || app.defaultName}
             </button>
-          )}
-
-          {(currentUser.role === 'admin' || currentUser.allowedApps?.includes('image-script')) && (
-            <button
-              onClick={() => setActiveTab('image-script')}
-              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'image-script'
-                ? 'bg-indigo-600 text-white shadow-lg'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              {appNames['image-script'] || 'Visual Script Engine'}
-            </button>
-          )}
-
-          {(currentUser.role === 'admin' || currentUser.allowedApps?.includes('zenshot-ai')) && (
-            <button
-              onClick={() => setActiveTab('zenshot-ai')}
-              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'zenshot-ai'
-                ? 'bg-indigo-600 text-white shadow-lg'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              {appNames['zenshot-ai'] || 'ZenShot AI (New)'}
-            </button>
-          )}
-
-          {(currentUser.role === 'admin' || currentUser.allowedApps?.includes('translation')) && (
-            <button
-              onClick={() => setActiveTab('translation')}
-              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'translation'
-                ? 'bg-indigo-600 text-white shadow-lg'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              {appNames['translation'] || 'Translation AI'}
-            </button>
-          )}
-
-
-
-
-
-          {(currentUser.role === 'admin' || currentUser.allowedApps?.includes('new-tool')) && (
-            <button
-              onClick={() => setActiveTab('new-tool')}
-              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'new-tool'
-                ? 'bg-indigo-600 text-white shadow-lg'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              {appNames['new-tool'] || 'New Application'}
-            </button>
-          )}
+          ))}
         </div>
 
-        {/* User Info & Logout */}
+        {/* User Info & Logout/Login */}
         <div className="flex items-center gap-6">
-          <div className="text-right hidden md:block">
-            <div className="text-xs font-black uppercase text-indigo-400">Hello, {currentUser.username}</div>
-            <button onClick={handleLogout} className="text-[10px] uppercase font-bold text-slate-500 hover:text-white transition-colors">Logout</button>
-          </div>
-          <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center font-black text-sm shadow-lg ring-2 ring-indigo-400/20 cursor-pointer hover:ring-indigo-400 hover:scale-105 transition-all" onClick={() => setShowProfile(true)}>
-            {currentUser.username.charAt(0).toUpperCase()}
-          </div>
+          {currentUser ? (
+            <>
+              <div className="text-right hidden md:block">
+                <div className="text-xs font-black uppercase text-indigo-400">Hello, {currentUser.username}</div>
+                <button onClick={handleLogout} className="text-[10px] uppercase font-bold text-slate-500 hover:text-white transition-colors">Logout</button>
+              </div>
+              <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center font-black text-sm shadow-lg ring-2 ring-indigo-400/20 cursor-pointer hover:ring-indigo-400 hover:scale-105 transition-all" onClick={() => setShowProfile(true)}>
+                {currentUser.username.charAt(0).toUpperCase()}
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20"
+            >
+              Đăng Nhập
+            </button>
+          )}
         </div>
       </nav>
 
       {/* 3. Content Area */}
       <div className="w-full h-[calc(100vh-140px)]">
-        {activeTab === 'home' && <LandingPage key={currentUser.id} user={currentUser} onNavigate={setActiveTab} />}
-        {activeTab === 'video-viral' && <VideoViralApp key={currentUser.id} userId={currentUser.id} />}
-        {activeTab === 'image-script' && <ImageScriptApp key={currentUser.id} userId={currentUser.id} />}
-        {activeTab === 'zenshot-ai' && <ZenShotApp key={currentUser.id} userId={currentUser.id} />}
-        {activeTab === 'translation' && <TranslationApp key={currentUser.id} userId={currentUser.id} />}
+        {activeTab === 'home' && (
+          <LandingPage
+            key={currentUser?.id || 'guest'}
+            user={currentUser || { id: 'guest', username: 'Guest', role: 'user', createdAt: 0 }}
+            onNavigate={handleNavigate}
+          />
+        )}
 
-        {activeTab === 'new-tool' && <NewToolApp key={currentUser.id} />}
+        {/* Only render Apps if User is logged in AND allowed (Safety double check) */}
+        {currentUser && checkAccess(currentUser, 'video-viral').allowed && activeTab === 'video-viral' && <VideoViralApp key={currentUser.id} userId={currentUser.id} />}
+        {currentUser && checkAccess(currentUser, 'image-script').allowed && activeTab === 'image-script' && <ImageScriptApp key={currentUser.id} userId={currentUser.id} />}
+        {currentUser && checkAccess(currentUser, 'zenshot-ai').allowed && activeTab === 'zenshot-ai' && <ZenShotApp key={currentUser.id} userId={currentUser.id} />}
+        {currentUser && checkAccess(currentUser, 'translation').allowed && activeTab === 'translation' && <TranslationApp key={currentUser.id} userId={currentUser.id} />}
+        {currentUser && checkAccess(currentUser, 'new-tool').allowed && activeTab === 'new-tool' && <NewToolApp key={currentUser.id} />}
       </div>
 
-      {showProfile && (
+      {showProfile && currentUser && (
         <UserProfile
           user={currentUser}
           onUpdateUser={handleUpdateUser}
