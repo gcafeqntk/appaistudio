@@ -12,7 +12,7 @@ interface UserProfileProps {
 
 import AdminUserManagement from './AdminUserManagement';
 import AppConfigModal from './AppConfigModal';
-import { authSupabase } from '../services/authSupabase';
+import { authFirebase } from '../services/authFirebase';
 
 const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateUser, onClose, appNames = {}, onUpdateAppNames = () => { } }) => {
     const [email, setEmail] = useState(user.email || '');
@@ -24,7 +24,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdateUser, onClose, 
 
     const handleSave = async () => {
         try {
-            await authSupabase.updateProfile(user.id, {
+            await authFirebase.updateProfile(user.id, {
                 email,
                 phone
             });

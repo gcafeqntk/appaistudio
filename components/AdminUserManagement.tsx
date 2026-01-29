@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { supabase } from '../services/supabase';
+import { db } from '../services/firebase';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 interface AdminUserManagementProps {
     onClose: () => void;
@@ -19,22 +20,22 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ onClose }) =>
     const [searchTerm, setSearchTerm] = useState('');
 
     const loadUsers = async () => {
-        const { data, error } = await supabase.from('users').select('*');
-        if (data) {
-            const userMap: Record<string, User> = {};
-            data.forEach((u: any) => {
-                userMap[u.username] = {
-                    id: u.id,
-                    username: u.username,
-                    email: u.email,
-                    phone: u.phone,
-                    role: u.role,
-                    allowedApps: u.allowed_apps,
-                    createdAt: new Date(u.created_at).getTime()
-                };
-            });
-            setUsers(userMap);
-        }
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const userMap: Record<string, User> = {};
+
+        querySnapshot.forEach((doc) => {
+            const u = doc.data();
+            userMap[u.username] = {
+                id: u.id,
+                username: u.username,
+                email: u.email,
+                phone: u.phone,
+                role: u.role,
+                allowedApps: u.allowedApps, // Firestore uses camelCase based on my previous saving logic
+                createdAt: u.createdAt
+            };
+        });
+        setUsers(userMap);
     };
 
     useEffect(() => {
@@ -59,7 +60,8 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ onClose }) =>
         }));
 
         // DB update
-        await supabase.from('users').update({ allowed_apps: newApps }).eq('id', user.id);
+        const userRef = doc(db, "users", user.id);
+        await updateDoc(userRef, { allowedApps: newApps });
     };
 
     const handleRoleChange = async (username: string) => {
@@ -73,7 +75,8 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ onClose }) =>
             [username]: { ...prev[username], role: newRole as UserRole }
         }));
 
-        await supabase.from('users').update({ role: newRole }).eq('id', user.id);
+        const userRef = doc(db, "users", user.id);
+        await updateDoc(userRef, { role: newRole });
     };
 
     const filteredUsers = (Object.values(users) as User[]).filter(user =>
