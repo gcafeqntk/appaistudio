@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "firebase": "^10.0.0",
     "@supabase/supabase-js": "^2.93.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",

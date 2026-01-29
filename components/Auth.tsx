@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 
-import { authSupabase } from '../services/authSupabase';
+import { authFirebase } from '../services/authFirebase';
 
 interface AuthProps {
     onLogin: (user: User) => void;
@@ -57,13 +57,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
                 // Race between Register and Timeout
                 user = await Promise.race([
-                    authSupabase.registerUser(email, password, username, phone),
+                    authFirebase.registerUser(email, password, username, phone),
                     timeoutPromise
                 ]) as User;
             } else {
                 // Race between Login and Timeout
                 user = await Promise.race([
-                    authSupabase.loginUser(email, password),
+                    authFirebase.loginUser(email, password),
                     timeoutPromise
                 ]) as User;
             }
@@ -170,8 +170,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                         {isRegistering ? 'Đã có tài khoản? Đăng nhập ngay' : 'Chưa có tài khoản? Đăng ký mới'}
                     </p>
                     <div className="mt-6 pt-4 border-t border-white/5 text-center">
-                        <span className="text-[10px] uppercase font-black tracking-widest text-emerald-500/50">
-                            System: Supabase V2 (Secure)
+                        <span className="text-[10px] uppercase font-black tracking-widest text-orange-500/50">
+                            System: Firebase V2 (Fast) + Supabase Storage
                         </span>
                     </div>
                 </div>

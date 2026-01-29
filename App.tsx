@@ -16,7 +16,12 @@ import UserProfile from './components/UserProfile';
 import { User } from './types';
 
 import { supabase } from './services/supabase';
-import { authSupabase } from './services/authSupabase';
+// import { authSupabase } from './services/authSupabase'; // DEPRECATED
+import { auth, db } from './services/firebase'; // NEW Firebase Import
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { authFirebase } from './services/authFirebase'; // For fallback profile fetch if needed
+
 import { appConfigService } from './services/appConfigService';
 
 const App: React.FC = () => {
@@ -35,58 +40,40 @@ const App: React.FC = () => {
     fetchAppNames();
   }, []);
 
-  // Listen to Supabase Auth state
+  // Listen to FIREBASE Auth state (Replaces Supabase Auth)
   useEffect(() => {
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        authSupabase.getUserProfile(session.user.id).then(profile => {
-          if (profile) setCurrentUser(profile);
-          else {
+    // onAuthStateChanged returns an unsubscribe function
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (firebaseUser) {
+          // 1. Fetch Profile from Firestore
+          const profile = await authFirebase.getUserProfile(firebaseUser.uid);
+
+          if (profile) {
+            setCurrentUser(profile);
+          } else {
+            // Fallback for new users or missing profiles
             setCurrentUser({
-              id: session.user.id,
-              username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
-              email: session.user.email,
+              id: firebaseUser.uid,
+              username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+              email: firebaseUser.email || '',
               role: 'user',
               createdAt: Date.now()
             });
           }
-        }).catch((err) => {
-          console.error("Profile load error:", err);
-          // Fallback user if profile fails
-          setCurrentUser({
-            id: session.user.id,
-            username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'User',
-            email: session.user.email,
-            role: 'user',
-            createdAt: Date.now()
-          });
-        }).finally(() => {
-          setInitializing(false);
-        });
-      } else {
-        setCurrentUser(null);
-        setInitializing(false);
-      }
-    });
-
-    // Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      try {
-        if (session?.user) {
-          const profile = await authSupabase.getUserProfile(session.user.id);
-          if (profile) setCurrentUser(profile);
         } else {
+          // User is signed out
           setCurrentUser(null);
         }
       } catch (err) {
-        console.error("Auth state change error:", err);
+        console.error("Firebase Auth State Error:", err);
+        setCurrentUser(null);
       } finally {
         setInitializing(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   // Old timeout removed in favor of Emergency Strategy
@@ -105,8 +92,8 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     setInitializing(true);
-    await authSupabase.logoutUser();
-    // State update will be handled by onAuthStateChange
+    await authFirebase.logoutUser();
+    // onAuthStateChanged will handle the rest
   };
 
   // State for Emergency Recovery
@@ -181,7 +168,7 @@ const App: React.FC = () => {
 
             <button
               onClick={() => {
-                authSupabase.logoutUser().then(() => window.location.reload());
+                authFirebase.logoutUser().then(() => window.location.reload());
               }}
               className="w-full py-3 bg-[#0f172a] border border-slate-600 hover:border-white text-white rounded-lg font-bold transition-all"
             >
