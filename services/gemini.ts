@@ -159,12 +159,24 @@ export const buildOutline = async (skeleton: string, idea: Idea, targetCount: nu
   });
 };
 
-export const writeFinalScript = async (outline: string, style: string, apiKey?: string) => {
+export const writeFinalScript = async (outline: string, style: string, targetLanguage: string = 'VN', apiKey?: string) => {
+  const langMap: Record<string, string> = {
+    'VN': 'Vietnamese',
+    'EN': 'English',
+    'JA': 'Japanese',
+    'KO': 'Korean',
+    'ZH': 'Chinese'
+  };
+  const langName = langMap[targetLanguage] || targetLanguage;
+
   return generateWithFallback(apiKey, async (model) => {
     const prompt = `
         Viết lời thoại kịch bản hoàn chỉnh (voice-ready) dựa trên dàn ý và phong cách sau:
         - Dàn ý: """${outline}"""
         - Phong cách mô phỏng: """${style}"""
+
+        NGÔN NGỮ ĐẦU RA BẮT BUỘC: ${langName}.
+        Toàn bộ nội dung kịch bản phải được viết bằng ${langName}.
 
         QUY TẮC NGHIÊM NGẶT:
         1. Chỉ trả về lời thoại sạch 100%. Không tiêu đề, không chú thích, không ngoặc ( ), không nhạc nền.
@@ -226,7 +238,16 @@ export const designCharacters = async (script: string, style: string, apiKey?: s
   });
 };
 
-export const analyzeActionsForTag = async (tagContent: string, style: string, characters: CharacterProfile[], apiKey?: string) => {
+export const analyzeActionsForTag = async (tagContent: string, style: string, characters: CharacterProfile[], targetLanguage: string = 'VN', apiKey?: string) => {
+  const langMap: Record<string, string> = {
+    'VN': 'Vietnamese',
+    'EN': 'English',
+    'JA': 'Japanese',
+    'KO': 'Korean',
+    'ZH': 'Chinese'
+  };
+  const langName = langMap[targetLanguage] || targetLanguage;
+
   return generateWithFallback(apiKey, async (model) => {
     const charDetailsStr = characters.map(c =>
       `[Nhân vật: ${c.name} | Giới tính: ${c.gender} | Quốc gia: ${c.country} | Tuổi: ${c.age} | Dáng người: ${c.bodyType} | Khuôn mặt: ${c.facialDetails}]`
@@ -238,13 +259,19 @@ export const analyzeActionsForTag = async (tagContent: string, style: string, ch
 
         Kịch bản: """${tagContent}"""
         
+        NGÔN NGỮ ĐẦU RA BẮT BUỘC cho nội dung text (Action, VoiceText): ${langName}.
+
+        QUY TẮC PHÂN LOẠI NỘI DUNG (CỰC KỲ QUAN TRỌNG):
+        1. "Master Transcript" (voiceText): CHỈ CHỨA LỜI THOẠI CỦA NHÂN VẬT (Dialogue) mà nhân vật thực sự nói ra (trực tiếp). Phải dịch sang ${langName}.
+        2. "Shot Execution" (action): Chứa mô tả hành động (Visual Action) VÀ lời dẫn chuyện (Narrator/Voiceover) VÀ các âm thanh nền/hành động không lời. Phải dịch sang ${langName}.
+
         THÔNG TIN NHÂN VẬT GỐC (BẮT BUỘC PHẢI SAO CHÉP CHÍNH XÁC KHI NHẮC ĐẾN):
         ${charDetailsStr}
 
         NGUYÊN TẮC PHÂN TÍCH TÌNH HUỐNG (SITUATIONAL ANALYSIS):
         1. QUAN SÁT NGỮ CẢNH: Dựa vào nội dung liền trước (nếu có) và liền sau của mỗi hành động, hãy suy luận logic xem nhân vật nào ĐANG CÓ MẶT trong cảnh đó.
         2. DỰ ĐOÁN NHÂN VẬT: Nếu kịch bản không nhắc tên nhưng logic tình huống cho thấy nhân vật đó phải ở đó (ví dụ: đang đối thoại, đang đứng cạnh), BẮT BUỘC phải đưa họ vào.
-        3. HIỂN THỊ TRONG 'ACTION': Trong trường 'action' (Mô tả ngắn hành động), hãy liệt kê tên các nhân vật có mặt đầu tiên, sau đó đến mô tả hành động.
+        3. HIỂN THỊ TRONG 'ACTION': Trong trường 'action' (Mô tả ngắn hành động), hãy liệt kê tên các nhân vật có mặt đầu tiên đặt trong dấu ngoặc ĐƠN ( ), ví dụ: (Nam, Lan): ..., sau đó đến mô tả hành động.
 
         QUY TẮC TẠO PROMPT (Strict Compliance - Rules Override All):
 
@@ -269,20 +296,24 @@ export const analyzeActionsForTag = async (tagContent: string, style: string, ch
            - QUAN TRỌNG: Giữ nguyên trang phục xuyên suốt các shot nếu chưa đổi thời gian/cảnh.
 
         7. [AUDIO/VOICE – LIP SYNC]:
-           - Cấu trúc: [Tên nhân vật nói: "Lời thoại trong Master Transcript"] (nếu có thoại).
-           - Nếu không thoại: bỏ qua.
+           - Cấu trúc: [Tên nhân vật nói: "Lời thoại trong Master Transcript"] (CHỈ LỜI THOẠI TRỰC TIẾP).
+           - Lời dẫn chuyện (Narrator) phải đưa vào phần ACTION, KHÔNG đưa vào đây.
 
         8. [SPEECH SYNC]:
            - Nếu có lời thoại ở mục trên, BẮT BUỘC ghi tag: [Chuyển động miệng nhân vật đồng bộ với lời thoại].
 
         9. [TECHNICAL]: Ánh sáng, màu sắc (Lighting, Color).
 
+        10. [SỐ LƯỢNG NHÂN VẬT]:
+           - Nếu trong cảnh (Shot) chỉ có DUY NHẤT 1 nhân vật xuất hiện, BẮT BUỘC thêm câu lệnh này vào cuối phần ACTION: "The scene contains EXACTLY ONE character".
+           - Nếu có từ 2 nhân vật trở lên, KHÔNG ĐƯỢC thêm câu này.
+
         CẤU TRÚC PROMPT VIDEO (Video Motion Ai Prompt - Output String):
-        [${style}], [Bối cảnh chi tiết], [NO duplication, NO mutation, NO anatomical distortion, Any violation of anatomy rules is forbidden], [CAMERA], [ACTION: Tên NV + (Đặc điểm Full Copy) + Hành động. ${characters.length === 1 ? 'The scene contains EXACTLY ONE character' : 'Check logic'}], [Trang phục], [AUDIO/VOICE – LIP SYNC], [SPEECH SYNC], [TECHNICAL]
+        [${style}], [Bối cảnh chi tiết], [NO duplication, NO mutation, NO anatomical distortion, Any violation of anatomy rules is forbidden], [CAMERA], [ACTION: Tên NV + (Đặc điểm Full Copy) + Hành động. (Thêm 'The scene contains EXACTLY ONE character' nến chỉ có 1 NV)], [Trang phục], [AUDIO/VOICE – LIP SYNC], [SPEECH SYNC], [TECHNICAL]
 
         TRẢ VỀ JSON Array các object:
-        - action: [Tên các NV có mặt]: [Mô tả hành động]
-        - voiceText: Lời thoại (nếu có)
+        - action: (Tên các NV có mặt): [Mô tả hành động]
+        - voiceText: Lời thoại (nếu có - KHÔNG BAO GỒM NARRATOR)
         - motionPrompt: Prompt video (Tuân thủ cấu trúc trên)
       `;
 

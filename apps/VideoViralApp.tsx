@@ -93,7 +93,8 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
             outline: false,
             script: false,
             characters: false
-        }
+        },
+        outputLanguage: 'VN'
     });
 
     // API Key State
@@ -185,7 +186,7 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
         if (!state.outlines[index] || !state.skeleton) return;
         setState(prev => ({ ...prev, loading: { ...prev.loading, script: true } }));
         try {
-            const script = await writeFinalScript(state.outlines[index], state.skeleton.style, apiKey);
+            const script = await writeFinalScript(state.outlines[index], state.skeleton.style, state.outputLanguage, apiKey);
             setState(prev => ({ ...prev, finalScripts: { ...prev.finalScripts, [index]: script }, loading: { ...prev.loading, script: false } }));
         } catch (error) {
             console.error(error);
@@ -263,6 +264,18 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
         }));
     };
 
+    const handleUpdateTagContent = (ideaIdx: number, tagIdx: number, newContent: string) => {
+        setState(prev => {
+            const newTags = { ...prev.tags };
+            const ideaTags = [...(newTags[ideaIdx] || [])];
+            if (ideaTags[tagIdx]) {
+                ideaTags[tagIdx] = { ...ideaTags[tagIdx], content: newContent };
+            }
+            newTags[ideaIdx] = ideaTags;
+            return { ...prev, tags: newTags };
+        });
+    };
+
     const handleAnalyzeTag = async (ideaIdx: number, tagIdx: number) => {
         const tag = state.tags[ideaIdx]?.[tagIdx];
         if (!tag || !state.characters.length) {
@@ -281,7 +294,7 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
         });
 
         try {
-            const actions = await analyzeActionsForTag(tag.content, state.selectedStyle, state.characters, apiKey);
+            const actions = await analyzeActionsForTag(tag.content, state.selectedStyle, state.characters, state.outputLanguage, apiKey);
             setState(prev => {
                 const newTags = { ...prev.tags };
                 const ideaTags = [...(newTags[ideaIdx] || [])];
@@ -551,13 +564,30 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                                                             {state.outlines[idx]}
                                                         </div>
                                                         {!state.finalScripts[idx] && (
-                                                            <button
-                                                                onClick={() => handleWriteScript(idx)}
-                                                                disabled={state.loading.script}
-                                                                className={`mt-12 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-12 py-8 rounded-2xl shadow-2xl transition-all uppercase tracking-widest text-xs ${state.loading.script ? 'opacity-30 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-95'}`}
-                                                            >
-                                                                {state.loading.script ? "Đang viết..." : "Viết kịch bản hoàn chỉnh"}
-                                                            </button>
+                                                            <>
+                                                                <div className="mb-6 bg-slate-100 p-4 rounded-2xl border border-slate-200">
+                                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Chọn ngôn ngữ đầu ra</label>
+                                                                    <select
+                                                                        value={state.outputLanguage || 'VN'}
+                                                                        onChange={(e) => setState(prev => ({ ...prev, outputLanguage: e.target.value }))}
+                                                                        className="w-full bg-white text-slate-800 font-bold text-sm px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer"
+                                                                    >
+                                                                        <option value="VN">Tiếng Việt (VN)</option>
+                                                                        <option value="EN">English (EN)</option>
+                                                                        <option value="JA">Japanese (JA)</option>
+                                                                        <option value="KO">Korean (KO)</option>
+                                                                        <option value="ZH">Chinese (ZH)</option>
+                                                                    </select>
+                                                                </div>
+
+                                                                <button
+                                                                    onClick={() => handleWriteScript(idx)}
+                                                                    disabled={state.loading.script}
+                                                                    className={`w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black px-12 py-8 rounded-2xl shadow-2xl transition-all uppercase tracking-widest text-xs ${state.loading.script ? 'opacity-30 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-95'}`}
+                                                                >
+                                                                    {state.loading.script ? "Đang viết..." : "Viết kịch bản hoàn chỉnh"}
+                                                                </button>
+                                                            </>
                                                         )}
                                                     </div>
 
@@ -624,8 +654,17 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                                                                                 </div>
                                                                             </div>
 
-                                                                            <div className="p-10 bg-slate-50 rounded-[2.5rem] text-slate-500 text-lg italic font-medium leading-relaxed border-2 border-slate-100">
-                                                                                {tag.content}
+                                                                            <div className="relative group">
+                                                                                <textarea
+                                                                                    className="w-full min-h-[150px] p-8 bg-slate-50 rounded-[2.5rem] text-slate-600 text-lg italic font-medium leading-relaxed border-2 border-slate-100 outline-none focus:border-indigo-300 focus:bg-white transition-all resize-y custom-scrollbar"
+                                                                                    value={tag.content}
+                                                                                    onChange={(e) => handleUpdateTagContent(idx, tagIdx, e.target.value)}
+                                                                                />
+                                                                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                    <div className="bg-white/90 backdrop-blur text-[10px] font-black text-indigo-500 px-3 py-1.5 rounded-full border border-indigo-100 shadow-sm uppercase tracking-widest cursor-default">
+                                                                                        Editable
+                                                                                    </div>
+                                                                                </div>
                                                                             </div>
 
                                                                             {tag.actions.length > 0 && (

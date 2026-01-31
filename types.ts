@@ -53,6 +53,7 @@ export interface AppState {
     script: boolean;
     characters: boolean;
   };
+  outputLanguage?: string;
 }
 
 // Types for Image Script App

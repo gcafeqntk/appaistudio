@@ -191,23 +191,65 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
         fetchSettings();
     }, []);
 
-    // Sync pending settings when admin panel opens
+    // Sync pending settings ONLY when admin panel opens (initially)
+    // We remove 'settings' from dependency to prevent overwriting user's typing in Pending inputs
     useEffect(() => {
         if (showAdminPanel) {
             setPendingSettings(settings);
         }
-    }, [showAdminPanel, settings]);
+    }, [showAdminPanel]);
+
+    const [isSaving, setIsSaving] = useState(false);
 
     const saveSettings = async (newSettings: AppSettings) => {
-        setSettings(newSettings);
-        localStorage.setItem('app_settings', JSON.stringify(newSettings)); // Keep local sync
-        await appConfigService.saveLandingPageSettings(newSettings);
+        setIsSaving(true);
+        try {
+            // Check Payload Size
+            const jsonString = JSON.stringify(newSettings);
+            const sizeInBytes = new Blob([jsonString]).size;
+            const sizeInMB = sizeInBytes / (1024 * 1024);
+
+            if (sizeInMB > 0.95) {
+                alert(`⚠️ NGUY HIỂM: Dữ liệu của bạn nặng ${sizeInMB.toFixed(2)} MB (Gần giới hạn 1MB của Database).\n\nCó thể bạn đã copy-paste ảnh trực tiếp vào bài viết?\nHãy xóa ảnh đó và dùng nút "Img" (Upload) để giảm dung lượng.`);
+                // We still try to save, but warn first. Or maybe return?
+                // Let's try to save, but if it fails, the user knows why.
+            }
+
+            // Optimistic update
+            setSettings(newSettings);
+            // Also update pending if open, to show latest confirmed state
+            if (showAdminPanel) {
+                setPendingSettings(newSettings);
+            }
+
+            localStorage.setItem('app_settings', JSON.stringify(newSettings));
+            await appConfigService.saveLandingPageSettings(newSettings);
+
+        } catch (error: any) {
+            console.error("Failed to save:", error);
+            const errorMsg = error?.message || JSON.stringify(error) || "Unknown error";
+            alert(`Lỗi: Không thể lưu lên đám mây (Database).\nChi tiết: ${errorMsg}\n\nDữ liệu vẫn được lưu tạm ở máy này.`);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    const handleSavePendingSettings = () => {
+    const handleSavePendingSettings = async () => {
         if (pendingSettings) {
-            saveSettings(pendingSettings);
-            alert('Đã lưu cấu hình thành công!');
+            setIsSaving(true);
+            try {
+                // FORCE: Use News from main 'settings' (Source of Truth) to prevent stale news in pending
+                const finalSettings = {
+                    ...pendingSettings,
+                    news: settings.news
+                };
+                await saveSettings(finalSettings);
+                alert('Đã lưu cấu hình giao diện thành công!');
+            } catch (e) {
+                // Handled
+            } finally {
+                setIsSaving(false);
+            }
         }
     };
 
@@ -217,34 +259,42 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
         }
     };
 
-    const handleSaveNews = () => {
+    const handleSaveNews = async () => {
         if (!editingNews.title || !editingNews.content) return;
 
         const newItem: NewsItem = {
             id: editingNews.id || crypto.randomUUID(),
             title: editingNews.title,
             content: editingNews.content,
-            imageUrl: editingNews.imageUrl, // Added imageUrl
+            imageUrl: editingNews.imageUrl,
             date: editingNews.date || Date.now(),
             author: user.username
         };
 
-        let newNewsList = [...settings.news];
+        const currentNews = settings.news || [];
+        let newNewsList = [...currentNews];
         if (editingNews.id) {
             newNewsList = newNewsList.map(n => n.id === editingNews.id ? newItem : n);
         } else {
             newNewsList = [newItem, ...newNewsList];
         }
 
-        saveSettings({ ...settings, news: newNewsList });
+        // PRESERVE Unsaved Sidebar Changes if Panel is Open
+        const baseSettings = (showAdminPanel && pendingSettings) ? pendingSettings : settings;
+
+        await saveSettings({ ...baseSettings, news: newNewsList });
         setIsEditing(false);
         setEditingNews({});
     };
 
-    const handleDeleteNews = (id: string) => {
+    const handleDeleteNews = async (id: string) => {
         if (confirm('Bạn có chắc muốn xóa tin tức này?')) {
-            const newNewsList = settings.news.filter(n => n.id !== id);
-            saveSettings({ ...settings, news: newNewsList });
+            const currentNews = settings.news || [];
+            const newNewsList = currentNews.filter(n => n.id !== id);
+
+            // Validate base settings
+            const baseSettings = (showAdminPanel && pendingSettings) ? pendingSettings : settings;
+            await saveSettings({ ...baseSettings, news: newNewsList });
         }
     };
 
@@ -619,9 +669,31 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                             <h2 className="text-xl font-bold text-white uppercase tracking-widest">
                                 Cấu hình Trang Chủ
                             </h2>
-                            <button onClick={() => setShowAdminPanel(false)} className="text-slate-400 hover:text-white">
-                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            alert("Đang kiểm tra kết nối Database...");
+                                            await appConfigService.saveLandingPageSettings({ ...settings, _test: Date.now() });
+                                            const readBack = await appConfigService.getLandingPageSettings();
+                                            if (readBack && readBack._test) {
+                                                alert(`✅ KẾT NỐI OK! Database đang hoạt động tốt.\nĐã ghi và đọc thành công lúc: ${new Date(readBack._test).toLocaleTimeString()}`);
+                                            } else {
+                                                alert("⚠️ GHI THÀNH CÔNG NHƯNG ĐỌC THẤT BẠI.\nCó thể do quyền truy cập (Rules) chặn đọc.");
+                                            }
+                                        } catch (e: any) {
+                                            alert(`❌ LỖI KẾT NỐI: ${e.message}\nBạn không có quyền Ghi vào Database hoặc mạng lỗi.`);
+                                            console.error(e);
+                                        }
+                                    }}
+                                    className="px-3 py-1 bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded hover:bg-blue-600 hover:text-white text-xs font-bold transition-all"
+                                >
+                                    Test Database
+                                </button>
+                                <button onClick={() => setShowAdminPanel(false)} className="text-slate-400 hover:text-white">
+                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex-grow flex overflow-hidden">

@@ -47,11 +47,36 @@ export const appConfigService = {
         }
     },
 
+    // --- UTILS ---
+    // Helper to remove undefined values because Firestore hates them
+    cleanData(data: any): any {
+        if (data === null || data === undefined) return null;
+        if (Array.isArray(data)) {
+            return data.map(item => this.cleanData(item));
+        }
+        if (typeof data === 'object') {
+            const cleaned: any = {};
+            for (const key in data) {
+                const value = data[key];
+                if (value !== undefined) {
+                    cleaned[key] = this.cleanData(value);
+                } else {
+                    cleaned[key] = null; // Or just skip it: continue;
+                }
+            }
+            return cleaned;
+        }
+        return data;
+    },
+
     // Save Landing Page Settings
     async saveLandingPageSettings(settings: any): Promise<void> {
         try {
             const docRef = doc(db, "system_config", "landing_page");
-            await setDoc(docRef, { settings: settings }, { merge: true });
+            // Sanitize settings before saving
+            const safeSettings = this.cleanData(settings);
+            console.log("Saving sanitized settings:", safeSettings);
+            await setDoc(docRef, { settings: safeSettings }, { merge: true });
         } catch (error) {
             console.error("Error saving landing page config:", error);
             throw error;
