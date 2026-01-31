@@ -134,7 +134,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
     const [viewingWidget, setViewingWidget] = useState<SidebarWidget | null>(null);
 
     // Admin Panel Mode
-    const [adminMode, setAdminMode] = useState<'news' | 'widget'>('news');
+    const [adminMode, setAdminMode] = useState<'news' | 'widget' | 'welcome'>('news');
     const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
 
 
@@ -422,9 +422,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                             <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-indigo-400 leading-tight drop-shadow-2xl animate-in zoom-in-95 duration-700">
                                 {settings.welcomeTitle ? processText(settings.welcomeTitle) : 'QUANG HUY AI STUDIO'}
                             </h1>
-                            <p className="text-lg md:text-xl text-slate-400 font-light max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-6 delay-200">
-                                {settings.welcomeMessage || 'Nền tảng tích hợp đa công cụ mạnh mẽ, giúp bạn tối ưu hóa quy trình sáng tạo Video và Hình ảnh Viral chỉ với một cú click.'}
-                            </p>
+                            <div
+                                className="text-lg md:text-xl text-slate-400 font-light max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-6 delay-200 [&_img]:cursor-zoom-in [&_img]:rounded-lg [&_img]:shadow-sm hover:[&_img]:shadow-md [&_img]:transition-all"
+                                dangerouslySetInnerHTML={{ __html: settings.welcomeMessage || 'Nền tảng tích hợp đa công cụ mạnh mẽ, giúp bạn tối ưu hóa quy trình sáng tạo Video và Hình ảnh Viral chỉ với một cú click.' }}
+                                onClick={(e) => {
+                                    const target = e.target as HTMLElement;
+                                    if (target.tagName === 'IMG') {
+                                        e.stopPropagation();
+                                        setSelectedImage((target as HTMLImageElement).src);
+                                    }
+                                }}
+                            />
 
                             <div className="flex flex-wrap items-center justify-center gap-4 pt-8 animate-in fade-in slide-in-from-bottom-8 delay-300">
                                 <button
@@ -525,7 +533,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                     ← Quay lại
                                 </button>
                                 <h1 className="text-3xl font-black text-gray-900 mb-6">{viewingWidget.title}</h1>
-                                <div className="prose max-w-none text-gray-600 [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-800" dangerouslySetInnerHTML={{ __html: viewingWidget.content || '' }} />
+                                <div
+                                    className="prose max-w-none text-gray-600 [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-800 [&_img]:cursor-zoom-in [&_img]:rounded-lg [&_img]:shadow-sm hover:[&_img]:shadow-md [&_img]:transition-all"
+                                    dangerouslySetInnerHTML={{ __html: viewingWidget.content || '' }}
+                                    onClick={(e) => {
+                                        const target = e.target as HTMLElement;
+                                        if (target.tagName === 'IMG') {
+                                            e.stopPropagation();
+                                            setSelectedImage((target as HTMLImageElement).src);
+                                        }
+                                    }}
+                                />
                             </div>
                         ) : (
                             // Default Welcome + News
@@ -537,9 +555,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                     <h1 className="text-4xl font-black text-gray-900 mb-6">
                                         {processText(settings.welcomeTitle) || `Chào mừng, ${user.username}!`}
                                     </h1>
-                                    <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-                                        {settings.welcomeMessage || 'Hệ thống AI Studio cung cấp các công cụ tối tân nhất để tự động hóa quy trình sáng tạo nội dung của bạn.'}
-                                    </p>
+                                    <div
+                                        className="text-lg text-gray-600 mb-8 leading-relaxed prose max-w-none [&_img]:cursor-zoom-in [&_img]:rounded-lg [&_img]:shadow-sm hover:[&_img]:shadow-md [&_img]:transition-all"
+                                        dangerouslySetInnerHTML={{ __html: settings.welcomeMessage || 'Hệ thống AI Studio cung cấp các công cụ tối tân nhất để tự động hóa quy trình sáng tạo nội dung của bạn.' }}
+                                        onClick={(e) => {
+                                            const target = e.target as HTMLElement;
+                                            if (target.tagName === 'IMG') {
+                                                e.stopPropagation();
+                                                setSelectedImage((target as HTMLImageElement).src);
+                                            }
+                                        }}
+                                    />
                                     <div className="flex flex-wrap gap-4">
                                         {/* Buttons removed as per request */}
                                     </div>
@@ -792,6 +818,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                                     placeholder="Mô tả ngắn..."
                                                     className="w-full bg-slate-800 border-slate-700 text-white p-2 rounded text-sm h-20"
                                                 />
+                                                <button
+                                                    onClick={() => setAdminMode('welcome')}
+                                                    className="w-full mt-2 bg-indigo-600/50 hover:bg-indigo-600 text-white text-xs py-2 rounded border border-indigo-500/50"
+                                                >
+                                                    Chỉnh sửa nội dung (Full Editor)
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
@@ -806,8 +838,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                 </div>
                             </div>
 
-                            {/* Right: News Manager OR Widget Editor */}
-                            {adminMode === 'news' ? (
+                            {adminMode === 'news' && (
                                 <div className="w-2/3 p-6 flex flex-col bg-[#0f172a]">
                                     <div className="flex justify-between items-center mb-6">
                                         <h3 className="font-bold text-white">Quản lý Tin Tức</h3>
@@ -907,8 +938,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                         </div>
                                     )}
                                 </div>
-                            ) : (
-                                /* WIDGET EDITOR */
+                            )}
+
+                            {adminMode === 'widget' && (
                                 <div className="w-2/3 p-6 flex flex-col bg-[#0f172a]">
                                     <div className="flex justify-between items-center mb-6">
                                         <h3 className="font-bold text-white uppercase">
@@ -933,6 +965,48 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                             />
                                         </div>
                                         {/* Emoji Toolbar for Widget */}
+                                        <div className="flex gap-2 flex-wrap pt-4">
+                                            {['📢', '🔴', '🔔', '📣', '⚠️', '📌', '📍', '📞', '📩', '🎁', '🎉', '🆕', '🆙', 'Ok', '✅'].map(emoji => (
+                                                <button
+                                                    type="button"
+                                                    key={emoji}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        textEditorRef.current?.insertText(emoji);
+                                                    }}
+                                                    className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded text-sm transition-colors"
+                                                    title="Chèn vào nội dung"
+                                                >
+                                                    {emoji}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {adminMode === 'welcome' && (
+                                <div className="w-2/3 p-6 flex flex-col bg-[#0f172a]">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="font-bold text-white uppercase">
+                                            Chỉnh sửa Nội dung Chào mừng
+                                        </h3>
+                                        <button onClick={() => setAdminMode('news')} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg">
+                                            Xong
+                                        </button>
+                                    </div>
+
+                                    <div className="flex-grow flex flex-col min-h-0 pb-4">
+                                        <label className="text-xs text-slate-400 font-bold uppercase mb-2">Nội dung (HTML Supported)</label>
+                                        <div className="flex-grow bg-white rounded-lg overflow-hidden flex flex-col">
+                                            <RichTextEditor
+                                                ref={textEditorRef}
+                                                value={pendingSettings?.welcomeMessage || ''}
+                                                onChange={html => updatePendingSetting('welcomeMessage', html)}
+                                                className="flex-grow h-full text-black"
+                                            />
+                                        </div>
+                                        {/* Emoji Toolbar for Welcome */}
                                         <div className="flex gap-2 flex-wrap pt-4">
                                             {['📢', '🔴', '🔔', '📣', '⚠️', '📌', '📍', '📞', '📩', '🎁', '🎉', '🆕', '🆙', 'Ok', '✅'].map(emoji => (
                                                 <button
