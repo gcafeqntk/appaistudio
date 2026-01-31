@@ -737,7 +737,7 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
 
                 <footer className="w-full p-20 text-center border-t border-slate-100 bg-white mt-40">
                     <h4 className="text-2xl font-black tracking-tighter uppercase text-[#020617]">QUANG HUY <span className="text-indigo-600">VIDEO</span></h4>
-                    <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 mt-4">AI Viral Content Engine © 2024</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 mt-4">AI Viral Content Engine © 2024 - v1.5 (Multi-Lang)</p>
                 </footer>
             </React.Fragment>
         </ErrorBoundary >
