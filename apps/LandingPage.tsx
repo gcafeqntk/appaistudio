@@ -427,9 +427,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                 dangerouslySetInnerHTML={{ __html: settings.welcomeMessage || 'Nền tảng tích hợp đa công cụ mạnh mẽ, giúp bạn tối ưu hóa quy trình sáng tạo Video và Hình ảnh Viral chỉ với một cú click.' }}
                                 onClick={(e) => {
                                     const target = e.target as HTMLElement;
+                                    // Handle Image Click (Zoom)
                                     if (target.tagName === 'IMG') {
                                         e.stopPropagation();
                                         setSelectedImage((target as HTMLImageElement).src);
+                                        return;
+                                    }
+                                    // Handle Link Click (New Tab)
+                                    const link = target.closest('a');
+                                    if (link) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        window.open(link.href, '_blank');
                                     }
                                 }}
                             />
@@ -538,9 +547,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                     dangerouslySetInnerHTML={{ __html: viewingWidget.content || '' }}
                                     onClick={(e) => {
                                         const target = e.target as HTMLElement;
+                                        // Handle Image Click (Zoom)
                                         if (target.tagName === 'IMG') {
                                             e.stopPropagation();
                                             setSelectedImage((target as HTMLImageElement).src);
+                                            return;
+                                        }
+                                        // Handle Link Click (New Tab)
+                                        const link = target.closest('a');
+                                        if (link) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            window.open(link.href, '_blank');
                                         }
                                     }}
                                 />
@@ -560,9 +578,18 @@ const LandingPage: React.FC<LandingPageProps> = ({ user, onNavigate }) => {
                                         dangerouslySetInnerHTML={{ __html: settings.welcomeMessage || 'Hệ thống AI Studio cung cấp các công cụ tối tân nhất để tự động hóa quy trình sáng tạo nội dung của bạn.' }}
                                         onClick={(e) => {
                                             const target = e.target as HTMLElement;
+                                            // Handle Image Click (Zoom)
                                             if (target.tagName === 'IMG') {
                                                 e.stopPropagation();
                                                 setSelectedImage((target as HTMLImageElement).src);
+                                                return;
+                                            }
+                                            // Handle Link Click (New Tab)
+                                            const link = target.closest('a');
+                                            if (link) {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                window.open(link.href, '_blank');
                                             }
                                         }}
                                     />

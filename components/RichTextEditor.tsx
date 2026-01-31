@@ -144,12 +144,36 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(({ 
                 <button
                     onMouseDown={(e) => {
                         e.preventDefault();
-                        const url = prompt('Nhập đường dẫn URL:');
-                        if (url) execCmd('createLink', url);
+
+                        // Check if we are selecting an existing link to edit
+                        let currentUrl = '';
+                        let selection = window.getSelection();
+                        let anchorNode = selection?.anchorNode;
+
+                        // Traverse up to find 'A' tag
+                        while (anchorNode && anchorNode.nodeName !== 'A' && anchorNode !== editorRef.current) {
+                            anchorNode = anchorNode.parentNode;
+                        }
+
+                        if (anchorNode && anchorNode.nodeName === 'A') {
+                            currentUrl = (anchorNode as HTMLAnchorElement).href;
+                        }
+
+                        const url = prompt('Nhập đường dẫn URL:', currentUrl);
+
+                        if (url !== null) { // Only if user didn't cancel
+                            restoreSelection();
+                            if (url === '') {
+                                document.execCommand('unlink');
+                            } else {
+                                document.execCommand('createLink', false, url);
+                            }
+                            handleChange();
+                        }
                     }}
                     className="p-1 px-2 text-slate-300 hover:bg-white/10 rounded text-blue-400"
                     type="button"
-                    title="Chèn Link"
+                    title="Chèn/Sửa Link"
                 >
                     Link
                 </button>
