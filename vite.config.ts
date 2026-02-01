@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     // Chỉnh sửa từ '/appaistudio/' thành './' để hỗ trợ Custom Domain và tránh lỗi trang trắng
-    base: '/',
+    base: '/appaistudio/',
     server: {
       port: 3000,
       host: '0.0.0.0',

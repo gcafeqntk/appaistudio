@@ -2,11 +2,11 @@
   "name": "quang-huy-video-v1.4",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://appdanang.ddns.net/",
+  "homepage": "https://gcafeqntk.github.io/appaistudio/",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build --base=./",
     "preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
