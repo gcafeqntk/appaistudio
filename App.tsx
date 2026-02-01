@@ -13,6 +13,7 @@ import UserProfile from './components/UserProfile';
 import { User } from './types';
 import { auth, db } from './services/firebase'; // NEW Firebase Import
 import { onAuthStateChanged } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 import { authFirebase } from './services/authFirebase'; // For fallback profile fetch if needed
 import { appConfigService } from './services/appConfigService';
 
@@ -67,7 +68,24 @@ const App: React.FC = () => {
           const profile = await authFirebase.getUserProfile(firebaseUser.uid);
 
           if (profile) {
-            setCurrentUser(profile);
+            // AUTO-MIGRATION: Enable thumbhuy for existing users
+            let updatedProfile = profile;
+            if (profile.allowedApps && !profile.allowedApps.includes('thumbhuy')) {
+              console.log(`🔄 Auto-enabling thumbhuy for user: ${profile.username}`);
+              const newAllowedApps = [...profile.allowedApps, 'thumbhuy'];
+
+              // Update Firestore
+              try {
+                const userRef = doc(db, 'users', firebaseUser.uid);
+                await updateDoc(userRef, { allowedApps: newAllowedApps });
+                updatedProfile = { ...profile, allowedApps: newAllowedApps };
+                console.log(`✅ Thumbhuy enabled for: ${profile.username}`);
+              } catch (err) {
+                console.error('Failed to auto-enable thumbhuy:', err);
+              }
+            }
+
+            setCurrentUser(updatedProfile);
           } else {
             // Fallback for new users or missing profiles
             setCurrentUser({

@@ -12,12 +12,15 @@ const APP_LIST = [
     { id: 'image-script', label: 'Visual Script' },
     { id: 'zenshot-ai', label: 'ZenShot AI' },
     { id: 'translation', label: 'Translation' },
+    { id: 'thumbhuy', label: 'Thumbnail' },
     { id: 'new-tool', label: 'New Tool' }
 ];
 
 const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ onClose }) => {
     const [users, setUsers] = useState<Record<string, User>>({});
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedApp, setSelectedApp] = useState('thumbhuy');
+    const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
     const loadUsers = async () => {
         const querySnapshot = await getDocs(collection(db, "users"));
@@ -36,6 +39,51 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ onClose }) =>
             };
         });
         setUsers(userMap);
+    };
+
+    const bulkUpdateApp = async (action: 'enable' | 'disable') => {
+        const appLabel = APP_LIST.find(a => a.id === selectedApp)?.label || selectedApp;
+        const actionText = action === 'enable' ? 'cấp quyền' : 'thu hồi quyền';
+
+        if (!confirm(`Bạn có chắc muốn ${actionText} "${appLabel}" cho TẤT CẢ thành viên?`)) {
+            return;
+        }
+
+        setIsBulkProcessing(true);
+        try {
+            const querySnapshot = await getDocs(collection(db, "users"));
+            let updated = 0;
+            let skipped = 0;
+
+            for (const userDoc of querySnapshot.docs) {
+                const userData = userDoc.data();
+                const currentApps = userData.allowedApps || [];
+                const hasApp = currentApps.includes(selectedApp);
+
+                // Skip if already in desired state
+                if ((action === 'enable' && hasApp) || (action === 'disable' && !hasApp)) {
+                    skipped++;
+                    continue;
+                }
+
+                const newApps = action === 'enable'
+                    ? [...currentApps, selectedApp]
+                    : currentApps.filter(id => id !== selectedApp);
+
+                await updateDoc(doc(db, 'users', userDoc.id), {
+                    allowedApps: newApps
+                });
+                updated++;
+            }
+
+            alert(`✅ Hoàn thành!\n- Đã ${actionText}: ${updated} users\n- Đã ${action === 'enable' ? 'có sẵn' : 'chưa có'}: ${skipped} users`);
+            await loadUsers(); // Refresh table
+        } catch (error) {
+            console.error(`Failed to ${action} ${selectedApp} for all:`, error);
+            alert(`❌ Lỗi khi ${actionText}. Vui lòng thử lại.`);
+        } finally {
+            setIsBulkProcessing(false);
+        }
     };
 
     useEffect(() => {
@@ -93,6 +141,36 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ onClose }) =>
                         <h2 className="text-2xl font-black uppercase tracking-tighter">Admin Control Panel (v1.2)</h2>
                         <p className="text-xs text-indigo-400 font-bold uppercase tracking-[0.3em] mt-1">User & Access Management</p>
                     </div>
+                    {/* Bulk Operations */}
+                    <div className="flex items-center gap-2 bg-slate-800/30 px-3 py-2 rounded-xl border border-slate-700">
+                        <label className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">Bulk Action:</label>
+                        <select
+                            value={selectedApp}
+                            onChange={(e) => setSelectedApp(e.target.value)}
+                            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                        >
+                            {APP_LIST.map(app => (
+                                <option key={app.id} value={app.id}>{app.label}</option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={() => bulkUpdateApp('enable')}
+                            disabled={isBulkProcessing}
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-bold text-xs uppercase whitespace-nowrap shadow-lg transition-all flex items-center gap-1.5"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Enable All
+                        </button>
+                        <button
+                            onClick={() => bulkUpdateApp('disable')}
+                            disabled={isBulkProcessing}
+                            className="bg-rose-600 hover:bg-rose-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-bold text-xs uppercase whitespace-nowrap shadow-lg transition-all flex items-center gap-1.5"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Disable All
+                        </button>
+                    </div>
+
                     <button onClick={loadUsers} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest shadow-lg transition-all flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         Force Refresh
@@ -124,12 +202,13 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ onClose }) =>
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs font-black text-slate-500 uppercase tracking-wider">
-                                    <th className="p-4 pl-6">User Identity</th>
+                                    <th className="p-4">User Identity</th>
                                     <th className="p-4">Role</th>
                                     <th className="p-4 text-center">Video Viral</th>
                                     <th className="p-4 text-center">Visual Script</th>
                                     <th className="p-4 text-center">ZenShot New</th>
                                     <th className="p-4 text-center">Translation</th>
+                                    <th className="p-4 text-center">Thumbnail</th>
                                     <th className="p-4 text-center">New App</th>
                                 </tr>
                             </thead>

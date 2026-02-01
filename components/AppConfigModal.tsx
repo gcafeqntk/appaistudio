@@ -12,6 +12,7 @@ const DEFAULT_APP_NAMES: Record<string, string> = {
     'image-script': 'Visual Script Engine',
     'zenshot-ai': 'ZenShot AI (New)',
     'translation': 'Translation AI',
+    'thumbhuy': 'Thumbnail Master',
     'new-tool': 'New Application'
 };
 

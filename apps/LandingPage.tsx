@@ -77,9 +77,19 @@ const ExpandableNewsItem = ({ news, formatDate, onImageClick }: { news: NewsItem
                 className={`prose prose-slate max-w-none ${!expanded && isLong ? 'line-clamp-3' : ''}`}
                 onClick={(e) => {
                     const target = e.target as HTMLElement;
+                    // Handle Image Click (Zoom)
                     if (target.tagName === 'IMG') {
                         e.stopPropagation();
                         onImageClick((target as HTMLImageElement).src);
+                        return;
+                    }
+                    // Handle Link Click (New Tab)
+                    const link = target.closest('a');
+                    if (link) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(link.href, '_blank');
+                        return;
                     }
                 }}
             >
