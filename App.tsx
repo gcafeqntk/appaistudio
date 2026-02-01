@@ -8,6 +8,7 @@ import ZenShotApp from './apps/ZenShotApp';
 import LandingPage from './apps/LandingPage';
 import TranslationApp from './apps/TranslationApp';
 import NewToolApp from './apps/NewToolApp';
+import ThumbHuyApp from './apps/ThumbHuyApp';
 import UserProfile from './components/UserProfile';
 import { User } from './types';
 import { auth, db } from './services/firebase'; // NEW Firebase Import
@@ -41,7 +42,7 @@ const checkAccess = (user: User | null, appKey: string): { allowed: boolean; rea
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'video-viral' | 'image-script' | 'zenshot-ai' | 'translation' | 'new-tool'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'video-viral' | 'image-script' | 'zenshot-ai' | 'translation' | 'new-tool' | 'thumbhuy'>('home');
   const [showProfile, setShowProfile] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [appNames, setAppNames] = useState<Record<string, string>>({});
@@ -74,7 +75,7 @@ const App: React.FC = () => {
               username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
               email: firebaseUser.email || '',
               role: 'user',
-              allowedApps: ['video-viral', 'image-script', 'zenshot-ai', 'translation'], // Default allowed apps for new users
+              allowedApps: ['video-viral', 'image-script', 'zenshot-ai', 'translation', 'thumbhuy'], // Default allowed apps for new users
               createdAt: Date.now()
             });
           }
@@ -217,6 +218,7 @@ const App: React.FC = () => {
             { id: 'image-script', defaultName: 'Visual Script Engine' },
             { id: 'zenshot-ai', defaultName: 'ZenShot AI (New)' },
             { id: 'translation', defaultName: 'Translation AI' },
+            { id: 'thumbhuy', defaultName: 'Thumbnail Master' },
             { id: 'new-tool', defaultName: 'New Application' }
           ].map(app => (
             <button
@@ -270,6 +272,7 @@ const App: React.FC = () => {
         {currentUser && checkAccess(currentUser, 'image-script').allowed && activeTab === 'image-script' && <ImageScriptApp key={currentUser.id} userId={currentUser.id} />}
         {currentUser && checkAccess(currentUser, 'zenshot-ai').allowed && activeTab === 'zenshot-ai' && <ZenShotApp key={currentUser.id} userId={currentUser.id} />}
         {currentUser && checkAccess(currentUser, 'translation').allowed && activeTab === 'translation' && <TranslationApp key={currentUser.id} userId={currentUser.id} />}
+        {currentUser && checkAccess(currentUser, 'thumbhuy').allowed && activeTab === 'thumbhuy' && <ThumbHuyApp key={currentUser.id} userId={currentUser.id} />}
         {currentUser && checkAccess(currentUser, 'new-tool').allowed && activeTab === 'new-tool' && <NewToolApp key={currentUser.id} />}
       </div>
 

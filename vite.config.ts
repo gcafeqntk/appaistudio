@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
     // Chỉnh sửa từ '/appaistudio/' thành './' để hỗ trợ Custom Domain và tránh lỗi trang trắng
     base: './',
     server: {
-      port: 3000,
+      port: 3005,
       host: '0.0.0.0',
     },
     plugins: [react()],
