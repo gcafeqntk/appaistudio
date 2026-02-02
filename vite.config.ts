@@ -6,21 +6,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
 
   return {
-    // ⚠️ BẮT BUỘC: trùng folder GitHub Pages
-    base: '/appaistudio/',
-
+    base: '/', // ⬅️ QUAN TRỌNG: KHÔNG dùng './'
     plugins: [react()],
-
-    server: {
-      port: 3005,
-      host: '0.0.0.0',
-    },
-
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
-
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
