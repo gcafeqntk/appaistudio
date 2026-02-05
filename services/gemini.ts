@@ -308,13 +308,22 @@ export const analyzeActionsForTag = async (tagContent: string, style: string, ch
            - Nếu trong cảnh (Shot) chỉ có DUY NHẤT 1 nhân vật xuất hiện, BẮT BUỘC thêm câu lệnh này vào cuối phần ACTION: "The scene contains EXACTLY ONE character".
            - Nếu có từ 2 nhân vật trở lên, KHÔNG ĐƯỢC thêm câu này.
 
+        11. [PROMPT CHUYỂN TIẾP] (Transition Prompt - New Requirement):
+           BẮT BUỘC tạo một đoạn text mô tả chuyển tiếp với cấu trúc sau:
+           - Prompt chuyển tiếp: [Tên nhân vật chính trong shot hoặc Cảnh trí nếu không có nhân vật]
+           - Thời lượng: [Số giây ước tính cho shot này, ví dụ: 3 giây, 5 giây]
+           - Trạng thái hành động: [Trích xuất ngắn gọn trạng thái từ "Shot Execution"]
+           - Lời thoại tương ứng: "[Câu thoại trong Master Transcript]", [SPEECH SYNC] Chuyển động miệng nhân vật đồng bộ với lời thoại. (Nếu không có thoại, ghi: --- Instrumental Segment ---)
+           - Góc máy điện ảnh: [Mô tả kỹ thuật: Toàn cảnh, Cận cảnh, Dolly in, Pan.... Chọn kỹ thuật phù hợp dựa theo "Shot Execution"]
+
         CẤU TRÚC PROMPT VIDEO (Video Motion Ai Prompt - Output String):
         [${style}], [Bối cảnh chi tiết], [NO duplication, NO mutation, NO anatomical distortion, Any violation of anatomy rules is forbidden], [CAMERA], [ACTION: Tên NV + (Đặc điểm Full Copy) + Hành động. (Thêm 'The scene contains EXACTLY ONE character' nến chỉ có 1 NV)], [Trang phục], [AUDIO/VOICE – LIP SYNC], [SPEECH SYNC], [TECHNICAL]
 
         TRẢ VỀ JSON Array các object:
         - action: (Tên các NV có mặt): [Mô tả hành động]
         - voiceText: Lời thoại (nếu có - KHÔNG BAO GỒM NARRATOR)
-        - motionPrompt: Prompt video (Tuân thủ cấu trúc trên)
+        - motionPrompt: Prompt video (Tuân thủ cấu trúc Video Motion Ai Prompt)
+        - transitionPrompt: Đoạn văn mô tả (Tuân thủ cấu trúc PROMPT CHUYỂN TIẾP)
       `;
 
     const result = await model.generateContent({
@@ -443,5 +452,59 @@ export const generateThumbnailLayout = async (script: string, title: string, sty
     });
 
     return JSON.parse(result.response.text());
+  });
+};
+
+export const splitScriptToTags = async (script: string, apiKey?: string) => {
+  return generateWithFallback(apiKey, async (model) => {
+    const prompt = `
+        Bạn là chuyên gia biên kịch và phân cảnh phim.
+        Nhiệm vụ: Đọc kịch bản "Final Master Copy" sau đây và chia nó thành các TAG (phân đoạn/bối cảnh) riêng biệt.
+        
+        KỊCH BẢN: """${script}"""
+        
+        QUY TẮC:
+        1. KHÔNG được chỉnh sửa, thêm bớt hay thay đổi bất kỳ từ ngữ nào trong nội dung kịch bản gốc.
+        2. Mỗi TAG phải tương ứng với một bối cảnh (scene/location) riêng biệt hoặc một sự thay đổi đáng kể về thời gian/không gian.
+        3. Phải chia theo thứ tự kịch bản từ trên xuống dưới, đảm bảo tính liên tục.
+        4. Trả về một mảng JSON các chuỗi (strings), mỗi chuỗi là nội dung của một TAG.
+        
+        Ví dụ output: ["Nội dung tag 1...", "Nội dung tag 2...", ...]
+      `;
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    return JSON.parse(result.response.text()) as string[];
+  });
+};
+
+export const generateTagBackgroundPrompt = async (tagContent: string, style: string, apiKey?: string) => {
+  return generateWithFallback(apiKey, async (model) => {
+    const prompt = `
+        Bạn là một chuyên gia dựng bối cảnh cho kịch bản video chuyên nghiệp.
+        
+        NHIỆM VỤ:
+        Đọc đoạn kịch bản (TAG) dưới đây và thiết kế một PROMPT bối cảnh tổng quát (Background Prompt) đáp ứng các tiêu chí sau:
+        1. Phân tích sâu sắc nội dung TAG để xác định đây là ngoại cảnh (Exterior) hay nội cảnh (Interior).
+        2. Nếu là nội cảnh, hãy dựa theo mức độ sang giàu, không khí của bối cảnh trong kịch bản để dựng bối cảnh thật hợp lý.
+        3. Dựa theo Style được chọn: [${style}].
+        4. THIẾT KẾ MỘT BỐI CẢNH TỔNG QUAN, KHÔNG CÓ BẤT CỨ NHÂN VẬT NÀO.
+        5. RÀNG BUỘC CỰC KỲ CHI TIẾT VÀ MẠNH MẼ ĐỂ ÉP AI KHÔNG ĐƯỢC ĐƯA NHÂN VẬT VÀO (ví dụ: Empty scene, no people, no humans, abandoned, strictly scenery only).
+        6. Bối cảnh phải đáp ứng thể hiện được bối cảnh nền chung của cả TAG để sau này dùng dựng các video hành động.
+        
+        KỊCH BẢN TAG: """${tagContent}"""
+        
+        YÊU CẦU ĐẦU RA:
+        - Chỉ trả về duy nhất đoạn Prompt bằng tiếng Anh (để AI sinh ảnh hiểu tốt nhất).
+        - Prompt phải giàu chi tiết, đậm chất điện ảnh, focus vào ánh sáng, vật liệu, chất liệu bối cảnh.
+      `;
+
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
   });
 };

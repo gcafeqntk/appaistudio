@@ -27,12 +27,14 @@ export interface ActionDetail {
   action: string;
   voiceText: string;
   motionPrompt: string;
+  transitionPrompt: string;
 }
 
 export interface TagData {
   content: string;
   actions: ActionDetail[];
   isAnalyzing: boolean;
+  backgroundPrompt?: string;
 }
 
 export interface AppState {
@@ -52,6 +54,7 @@ export interface AppState {
     outline: boolean;
     script: boolean;
     characters: boolean;
+    splittingTags: boolean;
   };
   outputLanguage?: string;
 }

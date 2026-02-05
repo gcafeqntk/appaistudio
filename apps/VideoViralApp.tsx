@@ -8,7 +8,9 @@ import {
     designCharacters,
     analyzeActionsForTag,
     recommendStyle,
-    setGeminiKeys
+    setGeminiKeys,
+    splitScriptToTags,
+    generateTagBackgroundPrompt
 } from '../services/gemini';
 import { AppState, TagData, ActionDetail } from '../types';
 
@@ -92,7 +94,8 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
             ideas: false,
             outline: false,
             script: false,
-            characters: false
+            characters: false,
+            splittingTags: false
         },
         outputLanguage: 'VN'
     });
@@ -234,34 +237,37 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
         }
     };
 
-    const handleSplitTagsAndProcess = (index: number) => {
+    const handleSplitTagsAndProcess = async (index: number) => {
         const script = state.finalScripts[index];
         if (!script) return;
 
-        const MAX_CHARS = 2000;
-        let chunks: string[] = [];
-        if (script.length <= MAX_CHARS) {
-            chunks = [script];
-        } else {
-            let current = script;
-            while (current.length > 0) {
-                let splitPos = current.lastIndexOf('\n', MAX_CHARS);
-                if (splitPos === -1 || splitPos < 500) splitPos = MAX_CHARS;
-                chunks.push(current.substring(0, splitPos).trim());
-                current = current.substring(splitPos).trim();
-            }
+        setState(prev => ({ ...prev, loading: { ...prev.loading, splittingTags: true } }));
+        try {
+            // Split script into tags using AI
+            const tagContents = await splitScriptToTags(script, apiKey);
+
+            // Process each tag to get its background prompt
+            const tagData: TagData[] = await Promise.all(tagContents.map(async (content) => {
+                const backgroundPrompt = await generateTagBackgroundPrompt(content, state.selectedStyle, apiKey);
+                return {
+                    content,
+                    actions: [],
+                    isAnalyzing: false,
+                    backgroundPrompt
+                };
+            }));
+
+            setState(prev => ({
+                ...prev,
+                tags: { ...prev.tags, [index]: tagData },
+                loading: { ...prev.loading, splittingTags: false }
+            }));
+            showNotification("Đã chia TAGS và tạo bối cảnh thành công!", 'success');
+        } catch (error) {
+            console.error(error);
+            showNotification("Lỗi Chia TAGS: " + (error instanceof Error ? error.message : String(error)), 'error');
+            setState(prev => ({ ...prev, loading: { ...prev.loading, splittingTags: false } }));
         }
-
-        const tagData: TagData[] = chunks.map(content => ({
-            content,
-            actions: [],
-            isAnalyzing: false
-        }));
-
-        setState(prev => ({
-            ...prev,
-            tags: { ...prev.tags, [index]: tagData }
-        }));
     };
 
     const handleUpdateTagContent = (ideaIdx: number, tagIdx: number, newContent: string) => {
@@ -618,8 +624,8 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                                                                 >
                                                                     <svg className="w-8 h-8 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                                                                     <div>
-                                                                        <div className="text-xl">Bắt Đầu Chia TAGS</div>
-                                                                        <div className="text-[10px] opacity-60 mt-2 uppercase tracking-widest">Shot Decomposition</div>
+                                                                        <div className="text-xl">{state.loading.splittingTags ? "Đang chia..." : "Bắt Đầu Chia TAGS"}</div>
+                                                                        <div className="text-[10px] opacity-60 mt-2 uppercase tracking-widest">{state.loading.splittingTags ? "AI is processing..." : "Shot Decomposition"}</div>
                                                                     </div>
                                                                 </button>
                                                             </div>
@@ -653,6 +659,21 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
+
+                                                                            {/* Background Prompt Section */}
+                                                                            {tag.backgroundPrompt && (
+                                                                                <div className="bg-indigo-900/5 border-l-[10px] border-indigo-600 p-10 rounded-[2.5rem] space-y-4">
+                                                                                    <div className="flex items-center justify-between">
+                                                                                        <div className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em]">PROMPT BỐI CẢNH TỔNG QUÁT (AI GENERATED)</div>
+                                                                                        <button onClick={() => copyToClipboard(tag.backgroundPrompt || '')} className="bg-white/80 hover:bg-white p-2 rounded-lg text-indigo-600 shadow-sm transition-all active:scale-90">
+                                                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                                                                        </button>
+                                                                                    </div>
+                                                                                    <div className="text-sm font-bold text-slate-800 leading-relaxed italic bg-white/60 p-6 rounded-2xl border border-indigo-100">
+                                                                                        {tag.backgroundPrompt}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
 
                                                                             <div className="relative group">
                                                                                 <textarea
@@ -702,6 +723,21 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                                                                                                         {act.motionPrompt}
                                                                                                     </div>
                                                                                                 </div>
+
+                                                                                                {/* Prompt Chuyển Tiếp Section */}
+                                                                                                {act.transitionPrompt && (
+                                                                                                    <div className="bg-indigo-50 border-l-[10px] border-indigo-600 p-10 rounded-[2.5rem] relative group shadow-lg">
+                                                                                                        <div className="flex items-center justify-between mb-4">
+                                                                                                            <div className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em]">Prompt Chuyển Tiếp (Sequence Details)</div>
+                                                                                                            <button onClick={() => copyToClipboard(act.transitionPrompt)} className="bg-white/80 hover:bg-white p-2 rounded-lg text-indigo-600 shadow-sm transition-all active:scale-90">
+                                                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                        <div className="text-sm font-bold text-slate-800 leading-relaxed whitespace-pre-wrap bg-white/60 p-6 rounded-2xl border border-indigo-100">
+                                                                                                            {act.transitionPrompt}
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                )}
                                                                                             </div>
                                                                                         </div>
                                                                                     ))}
