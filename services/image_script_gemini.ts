@@ -221,31 +221,42 @@ export const generateVideoPrompts = async (
             `${c.name}: ${c.gender}, ${c.country}, ${c.age}, ${c.physique}. ${c.features}`
         ).join('\n');
 
-        const prompt = `Bạn là Đạo diễn hình ảnh (Visual Director) chuyên về Video/Cinematic. Nhiệm vụ của bạn là phân tích nội dung đoạn "Hook" và tạo Video Prompts (diễn tả chuyển động).
+        const prompt = `Bạn là một chuyên gia dựng video AI chuyên nghiệp từ kịch bản.
     
-    YÊU CẦU CHI TIẾT:
-    1. PHÂN TÍCH HÀNH ĐỘNG: Mỗi hành động cụ thể trong đoạn Hook phải có một prompt riêng biệt.
-    2. ĐỒNG BỘ NHÂN VẬT: Copy-paste NGUYÊN VĂN mô tả nhân vật từ dữ liệu bên dưới khi nhân vật đó xuất hiện trong hành động.
-    3. CHUYỂN ĐỘNG (MOTION): Mô tả rõ loại chuyển động (ví dụ: "Slo-mo walking", "Cinematic drone shot following", "Close-up of facial expression change").
-    4. BỐI CẢNH/TRANG PHỤC: Kế thừa từ thông tin bối cảnh đã cung cấp.
-    5. ĐỊNH DẠNG: Mỗi prompt là 1 hàng duy nhất.
-    
-    CẤU TRÚC PROMPT:
-    [Loại chuyển động/Góc máy] + [Hành động nhân vật] + [Mô tả nhân vật chi tiết] + [Trang phục & Bối cảnh]
-    
-    DỮ LIỆU NHÂN VẬT:
+    DỮ LIỆU ĐẦU VÀO:
+    1. VISUAL STYLE (Phong cách hình ảnh): ${visualStyle}
+    2. CHARACTER DATA (Dữ liệu nhân vật):
     ${charDatabase}
-    
-    PHONG CÁCH VISUAL:
-    ${visualStyle}
-    
-    BỐI CẢNH/TRANG PHỤC KẾ THỪA:
-    ${context || "Tự do sáng tạo dựa trên không khí chung."}
-    
-    NỘI DUNG ĐOẠN HOOK CẦN XỬ LÝ:
+    3. CONTEXT (Bối cảnh cũ): ${context || "Không có, hãy tạo mới phù hợp nội dung kịch bản."}
+    4. VIDEO HOOK CONTENT (Nội dung đoạn Hook):
     ${hookContent}
-    
-    Chỉ trả về danh sách các prompt video, mỗi prompt một hàng.`;
+
+    NHIỆM VỤ:
+    Đọc và phân tích VIDEO HOOK CONTENT thành các Bối Cảnh (Scenes). Với mỗi Bối Cảnh, hãy tạo ra CẶP 02 PROMPT (Action & Camera) tuân thủ tuyệt đối cấu trúc sau:
+
+    --- PROMPT 1: ACTION PROMPT ---
+    Cấu trúc bắt buộc:
+    [${visualStyle}], [Bối cảnh], [CAMERA], NO duplication, NO mutation, NO anatomical distortion, Any violation of anatomy rules is forbidden, [ACTION], [Trang Phục], [TECHNICAL].
+
+    QUY TẮC TUYỆT ĐỐI CHO ACTION PROMPT:
+    1. [Bối cảnh]: Nếu trùng với CONTEXT thì dùng lại, không thì tạo mới phù hợp nội dung hook.
+    2. [CAMERA]: Dựa theo nội dung hook để chọn góc máy hợp lý.
+    3. [ACTION]: Mô tả hành động chuyên nghiệp. QUAN TRỌNG: Khi nhắc đến nhân vật nào, BẮT BUỘC COPY NGUYÊN VĂN "Đặc điểm nhân vật" từ CHARACTER DATA vào ngay sau tên nhân vật trong prompt.
+       - VÍ DỤ: "Mai (tóc đen dài, mắt nâu...) đang chạy..."
+       - TUYỆT ĐỐI KHÔNG được viết tắt, KHÔNG được ghi "như trên", KHÔNG được tự ý sửa đổi đặc điểm.
+       - Nếu prompt nhắc đến nhân vật khác -> Cũng phải copy đặc điểm của nhân vật đó vào.
+    4. [Trang Phục]: Nếu kịch bản không nêu rõ thì tự thêm vào, PHẢI GHI RÕ MÀU SẮC (phù hợp nội dung).
+    5. [TECHNICAL]: Ánh sáng, màu sắc.
+    6. QUY TẮC "EXACTLY ONE": Nếu hành động chỉ có ĐÚNG 1 NHÂN VẬT -> BẮT BUỘC thêm câu lệnh sau vào CUỐI CÙNG của prompt: "The scene contains EXACTLY ONE character". Tuân thủ nghiêm ngặt.
+
+    --- PROMPT 2: CAMERA PROMPT ---
+    Chỉ thể hiện camera điện ảnh (Cinematic Camera movement) phù hợp để nối tiếp cảnh Action vừa rồi. Giữ nguyên style và bối cảnh.
+
+    --- YÊU CẦU OUTPUT ---
+    - Chỉ trả về danh sách các Prompt text.
+    - Mỗi Prompt nằm trên 1 dòng riêng biệt.
+    - Không đánh số thứ tự, không giải thích.
+    - Thứ tự: Action Prompt 1 -> Camera Prompt 1 -> Action Prompt 2 -> Camera Prompt 2...`;
 
         const result = await model.generateContent(prompt);
         return (result.response.text() || "").split('\n').filter(p => p.trim().length > 0);
