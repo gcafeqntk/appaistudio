@@ -158,18 +158,33 @@ export const generateImagePrompts = async (rows: string[], style: string, apiKey
     });
 };
 
-export const generateVideoPrompts = async (rows: string[], imagePrompts: string[], apiKey?: string): Promise<string[]> => {
+export const generateVideoPrompts = async (rows: string[], style: string, analysis: string, apiKey?: string): Promise<string[]> => {
     return generateWithFallback(apiKey, async (model) => {
-        const prompt = `Dựa vào nội dung kịch bản và các prompt ảnh đã có, hãy tạo ra các "Video Motion Prompts" (Prompt chuyển động cho video) tương ứng.
-        
-        Yêu cầu:
-        - Mỗi prompt video phải mô tả chuyển động của chủ thể và máy ảnh (Camera motion, subject action, dynamic transitions).
-        - Ngôn ngữ: Tiếng Anh.
-        - Kết quả phải là một mảng chuỗi, mỗi chuỗi tương ứng với một hàng kịch bản.
-        
-        Kịch bản & Prompt Ảnh:
-        ${rows.map((r, i) => `Hàng ${i + 1}: [Kịch bản: ${r}] [Prompt Ảnh: ${imagePrompts[i] || 'N/A'}]`).join('\n')}
-        
+        const prompt = `Bạn là một chuyên gia quay video chuyên nghiệp, một Visual Director tài năng. 
+        Nhiệm vụ của bạn là dựa theo phong cách (style) và phân tích phân cảnh đã có, tạo ra các "Video Motion Prompts" cực kỳ đặc sắc và chuyên nghiệp cho từng phân đoạn kịch bản.
+
+        PHONG CÁCH PHÂN TÍCH (STYLE): 
+        ${style}
+
+        PHÂN TÍCH PHÂN CẢNH: 
+        ${analysis}
+
+        CÁC PHÂN ĐOẠN KỊCH BẢN:
+        ${rows.map((r, i) => `Phân đoạn ${i + 1}: ${r}`).join('\n')}
+
+        YÊU CẦU CẤU TRÚC PROMPT (BẮT BUỘC):
+        Mỗi prompt video phải tuân thủ tuyệt đối cấu trúc sau, ngăn cách bởi dấu phẩy:
+        [style], [bối cảnh], [camera], [action], [ánh sáng điện ảnh], [màu sắc]
+
+        QUY TẮC THỰC HIỆN:
+        1. [style]: Sử dụng thông tin từ "Phong cách phân tích" để tạo mô tả style nhất quán.
+        2. [bối cảnh]: Dựa vào nội dung kịch bản và phân tích phân cảnh để mô tả không gian chi tiết.
+        3. [camera]: Thể hiện sự chuyên nghiệp của bạn bằng các thuật ngữ quay phim (ví dụ: cinematic drone shot, extreme close-up, low angle tracking, shallow depth of field, v.v.).
+        4. [action]: Mô tả chuyển động của chủ thể một cách sống động, đúng bản chất kịch bản.
+        5. [ánh sáng điện ảnh] & [màu sắc]: Mô tả ánh sáng (volumetric lighting, golden hour, neon glow...) và bảng màu (vibrant, moody, teal and orange...) phù hợp với style.
+        6. TRẢ VỀ ĐÚNG ${rows.length} PROMPT, mỗi prompt tương ứng với một phân đoạn kịch bản. 
+        7. Không dư, không thiếu, không giải thích, không đánh số. Mỗi prompt 1 hàng.
+
         Trả về mảng JSON (mảng string).`;
 
         const result = await model.generateContent({

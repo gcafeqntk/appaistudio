@@ -17,6 +17,7 @@ interface TagItemRef {
     runAutoSequence: () => Promise<void>;
     getRows: () => string[];
     getPrompts: () => string[];
+    getVideoPrompts: () => string[];
 }
 
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -100,14 +101,18 @@ const TagItem = forwardRef<TagItemRef, { tag: ScriptTag; style: string; index: n
             onNotify("Cần chia hàng trước", 'info');
             return;
         }
+        if (!localTag.analysis) {
+            onNotify("Cần phân tích phân cảnh trước", 'info');
+            return;
+        }
         setIsLoading(prev => ({ ...prev, videoPrompt: true }));
         try {
-            const videoPrompts = await generateVideoPrompts(localTag.rows, localTag.prompts || [], apiKey);
+            const videoPrompts = await generateVideoPrompts(localTag.rows, style, localTag.analysis, apiKey);
             setLocalTag(prev => ({ ...prev, videoPrompts }));
+            return videoPrompts;
         } catch (err) {
             console.error(err);
             onNotify("Lỗi khi tạo prompt video", 'error');
-            // alert("Lỗi khi tạo prompt video");
         } finally {
             setIsLoading(prev => ({ ...prev, videoPrompt: false }));
         }
@@ -137,7 +142,8 @@ const TagItem = forwardRef<TagItemRef, { tag: ScriptTag; style: string; index: n
             // Ensure state is fully committed before next step
         },
         getRows: () => localTagRef.current.rows || [],
-        getPrompts: () => localTagRef.current.prompts || []
+        getPrompts: () => localTagRef.current.prompts || [],
+        getVideoPrompts: () => localTagRef.current.videoPrompts || []
     }), []); // Empty dependency array ensures handle remains stable
 
     return (
@@ -237,6 +243,28 @@ const TagItem = forwardRef<TagItemRef, { tag: ScriptTag; style: string; index: n
                             {localTag.prompts.map((prompt, idx) => (
                                 <div key={idx} className="p-4 bg-purple-50 border border-purple-100 rounded-xl text-sm font-mono text-purple-900 leading-relaxed">
                                     <div className="text-[10px] font-bold text-purple-400 mb-1">PROMPT #{idx + 1}</div>
+                                    {prompt}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {localTag.videoPrompts && localTag.videoPrompts.length > 0 && (
+                    <div className="space-y-3 pt-4 border-t border-gray-50">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider">Video Prompts</h4>
+                            <button
+                                onClick={() => copyAllFormatted(localTag.videoPrompts || [])}
+                                className="text-[10px] font-bold text-rose-500 hover:text-rose-700 uppercase flex items-center gap-1"
+                            >
+                                Copy All
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            {localTag.videoPrompts.map((prompt, idx) => (
+                                <div key={idx} className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-sm font-mono text-rose-900 leading-relaxed">
+                                    <div className="text-[10px] font-bold text-rose-400 mb-1">VIDEO PROMPT #{idx + 1}</div>
                                     {prompt}
                                 </div>
                             ))}
@@ -442,6 +470,29 @@ const TagList: React.FC<{ tags: ScriptTag[]; style: string; apiKey?: string; onN
         onNotify(`Đã copy chính xác ${allPrompts.length} prompt!`, 'success');
     };
 
+    const handleCopyAllVideoPrompts = () => {
+        const allVideoPrompts: string[] = [];
+        tagRefs.current.forEach(ref => {
+            if (ref) {
+                const vPrompts = ref.getVideoPrompts();
+                const cleanedVideoPrompts = vPrompts
+                    .map(p => p.trim())
+                    .filter(p => p.length > 0)
+                    .map(p => p.replace(/\r?\n|\r/g, " "))
+                    .map(p => p.replace(/^["']+|["']+$/g, ''));
+                allVideoPrompts.push(...cleanedVideoPrompts);
+            }
+        });
+
+        if (allVideoPrompts.length === 0) {
+            onNotify("Không có prompt video để copy!", 'info');
+            return;
+        }
+
+        navigator.clipboard.writeText(allVideoPrompts.join('\n'));
+        onNotify(`Đã copy chính xác ${allVideoPrompts.length} prompt video!`, 'success');
+    };
+
     if (tags.length === 0) {
         return (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4 p-12 bg-white rounded-3xl border border-gray-100 border-dashed">
@@ -493,6 +544,14 @@ const TagList: React.FC<{ tags: ScriptTag[]; style: string; apiKey?: string; onN
                 >
                     <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     Copy All Prompt Anh
+                </button>
+
+                <button
+                    onClick={handleCopyAllVideoPrompts}
+                    className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all shadow-sm active:scale-95 flex items-center gap-2"
+                >
+                    <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.586-4.586a2 2 0 012.828 0L24 10m-2-2l1.586-1.586a2 2 0 012.828 0L28 8m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    Copy All Video
                 </button>
             </div>
 
