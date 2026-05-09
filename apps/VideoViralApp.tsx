@@ -591,8 +591,14 @@ const VideoViralApp: React.FC<VideoViralAppProps> = ({ userId }) => {
                                                                     disabled={state.loading.script}
                                                                     className={`w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black px-12 py-8 rounded-2xl shadow-2xl transition-all uppercase tracking-widest text-xs ${state.loading.script ? 'opacity-30 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-95'}`}
                                                                 >
-                                                                    {state.loading.script ? "Đang viết..." : "Viết kịch bản hoàn chỉnh"}
+                                                                    {state.loading.script ? "Đang viết đa tầng (1-2 phút)..." : "Viết kịch bản hoàn chỉnh"}
                                                                 </button>
+                                                                {state.loading.script && (
+                                                                    <p className="mt-4 text-[10px] text-indigo-600 font-black uppercase tracking-widest text-center animate-pulse">
+                                                                        AI đang viết từng phần để đảm bảo độ dài & chi tiết tối đa...
+                                                                    </p>
+                                                                )}
+
                                                             </>
                                                         )}
                                                     </div>

@@ -159,6 +159,50 @@ export const buildOutline = async (skeleton: string, idea: Idea, targetCount: nu
   });
 };
 
+export const splitOutlineIntoParts = async (outline: string, apiKey?: string) => {
+  return generateWithFallback(apiKey, async (model) => {
+    const prompt = `
+        Dựa trên dàn ý kịch bản sau:
+        """${outline}"""
+        
+        Nhiệm vụ: Chia dàn ý này thành 4-6 phần nhỏ (mỗi phần là một đoạn chi tiết của dàn ý) để AI có thể viết kịch bản dài mà không bị ngắt quãng.
+        Đảm bảo mỗi phần bao quát một giai đoạn logic của câu chuyện.
+        
+        TRẢ VỀ ĐỊNH DẠNG JSON MẢNG CÁC CHUỖI: ["Dàn ý chi tiết phần 1...", "Dàn ý chi tiết phần 2...", ...]
+      `;
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
+    });
+    return JSON.parse(result.response.text()) as string[];
+  });
+};
+
+const writeScriptPart = async (partOutline: string, style: string, langName: string, previousScript: string, apiKey: string | undefined, partNum: number, totalParts: number) => {
+  return generateWithFallback(apiKey, async (model) => {
+    const prompt = `
+        Bạn đang viết kịch bản cho một video viral dài. Đây là PHẦN ${partNum}/${totalParts} của kịch bản.
+        
+        DÀN Ý CHO PHẦN NÀY: """${partOutline}"""
+        PHONG CÁCH MÔ PHỎNG: """${style}"""
+        NGÔN NGỮ: ${langName}
+        
+        ${previousScript ? `NỘI DUNG ĐÃ VIẾT TRƯỚC ĐÓ (để đảm bảo tính liên kết, ĐỪNG VIẾT LẠI):
+        """...${previousScript.slice(-2000)}"""` : ""}
+        
+        YÊU CẦU:
+        1. Viết lời thoại tiếp nối mượt mà từ phần trước (nếu có).
+        2. Chỉ trả về lời thoại sạch 100%. Không tiêu đề, không chú thích, không ngoặc ( ), không nhạc nền.
+        3. Tập trung triển khai chi tiết các tình tiết trong dàn ý của phần này để đạt độ dài cần thiết.
+        4. KHÔNG lặp lại những gì đã viết ở phần trước.
+      `;
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  });
+};
+
 export const writeFinalScript = async (outline: string, style: string, targetLanguage: string = 'VN', apiKey?: string) => {
   const langMap: Record<string, string> = {
     'VN': 'Vietnamese',
@@ -169,23 +213,18 @@ export const writeFinalScript = async (outline: string, style: string, targetLan
   };
   const langName = langMap[targetLanguage] || targetLanguage;
 
-  return generateWithFallback(apiKey, async (model) => {
-    const prompt = `
-        Viết lời thoại kịch bản hoàn chỉnh (voice-ready) dựa trên dàn ý và phong cách sau:
-        - Dàn ý: """${outline}"""
-        - Phong cách mô phỏng: """${style}"""
+  // Step 1: Split outline into logical parts
+  const parts = await splitOutlineIntoParts(outline, apiKey);
 
-        NGÔN NGỮ ĐẦU RA BẮT BUỘC: ${langName}.
-        Toàn bộ nội dung kịch bản phải được viết bằng ${langName}.
+  let fullScript = "";
+  for (let i = 0; i < parts.length; i++) {
+    const partScript = await writeScriptPart(parts[i], style, langName, fullScript, apiKey, i + 1, parts.length);
+    fullScript += (fullScript ? "\n\n" : "") + partScript;
+  }
 
-        QUY TẮC NGHIÊM NGẶT:
-        1. Chỉ trả về lời thoại sạch 100%. Không tiêu đề, không chú thích, không ngoặc ( ), không nhạc nền.
-        2. Viết liền mạch theo thứ tự Hook -> Build-up -> Value/Twist -> CTA.
-      `;
-    const result = await model.generateContent(prompt);
-    return result.response.text();
-  });
+  return fullScript;
 };
+
 
 export const recommendStyle = async (script: string, availableStyles: string[], apiKey?: string) => {
   return generateWithFallback(apiKey, async (model) => {
